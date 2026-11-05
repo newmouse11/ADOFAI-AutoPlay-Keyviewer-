@@ -1,0 +1,11 @@
+{
+  "Id": "AutoFingering",
+  "DisplayName": "Auto Fingering",
+  "Author": "New_mouse_dh",
+  "Version": "1.0.0",
+  "HomePage": "https://github.com/newmouse11/ADOFAI-AutoPlay-Keyviewer-",
+  "ManagerVersion": "0.22.14",
+  "AssemblyName": "AutoFingering.dll",
+  "EntryMethod": "AutoFingering.Main.Load",
+  "LoadAfter": ["JALib", "JipperResourcePack", "LineKeyViewer", "AdofaiTweaks"]
+}
