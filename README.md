@@ -41,9 +41,13 @@ A Dance of Fire and Ice용 UnityModManager 모드입니다. 게임의 자동 재
 | 계단 | `J K D F` |
 | 역계단 | `K J F D` |
 
+짧은 간격으로 몰린 입력(간격 12 ms 이내, 전체 폭 35 ms 이내)은 동타로 보고 한 번에 누릅니다. 동타는 롤 순서와 상관없이 가장 강한 손가락 조합을 묶음마다 똑같이 잡습니다. 8동타는 양손 검지부터 새끼까지 8손가락이고, 9동타부터 아래 키를 씁니다.
+
+엄지와 손바닥 키(아래 키)는 8손가락을 다 돌려도 같은 손가락 간격이 최소 간격의 75% 아래로 떨어지는 연타에서만 씁니다. 아래 키를 아예 쓰지 않으려면 최대 사용 키를 8로 둡니다.
+
 키 역할은 뷰어 배열 순서에서 추정한 값입니다. 어떤 뷰어에도 손가락 정보가 없기 때문입니다. 실제 손 배치와 다르면 키 역할 편집에서 고칩니다. 발 키는 쓰지 않습니다.
 
-맨 아래 상태 줄에 연결된 뷰어, 배치 기준, 키 수, 마지막 계획의 최소 간격 위반 수가 나옵니다.
+맨 아래 상태 줄에 연결된 뷰어, 배치 기준, 키 수, 마지막 계획의 최소 간격 위반 수가 나옵니다. 위반은 같은 손가락을 최소 간격의 75%보다 짧게 다시 친 횟수입니다.
 
 ## 지원하는 뷰어
 
@@ -58,17 +62,18 @@ Jipper의 평생 키 통계에는 자동 재생 입력이 남지 않습니다. �
 
 ## 검증한 환경
 
-Windows Sandbox 안의 Mods 폴더에 1.0.0 zip의 파일을 복사하고, 테스트용 모드가 자동 재생을 켜서 음악 없는 레벨을 기본 설정과 60 fps로 돌렸습니다. UnityModManager 설치기, Otto 버튼, 기본값이 아닌 롤 방식, 소리는 게임 안에서 확인하지 않았습니다. 롤 방식은 단위 테스트로 검증했습니다.
+Windows Sandbox 안의 Mods 폴더에 1.0.0 zip의 파일을 복사하고, 테스트용 모드가 자동 재생을 켜서 음악 없는 레벨을 기본 설정과 60 fps로 돌렸습니다. 실제 맵으로는 REX(Camellia)를 밖안, 최대 16키로 끝까지 돌렸습니다. UnityModManager 설치기, Otto 버튼, 안밖·밖안 외의 롤 방식, 소리는 게임 안에서 확인하지 않았습니다. 롤 방식은 단위 테스트로 검증했습니다.
 
 | 게임 | 키 뷰어 | 경로 | 결과 |
 |---|---|---|---|
 | R150 | Jipper 1.6.0 + LineKeyViewer 1.0.2 | 에디터 2회, 일반 1회 | 계획한 126번과 켠 순서 일치, 키 통계 복원 |
+| R150 | Jipper 1.6.0 + LineKeyViewer 1.0.2 | REX 전체 1회 | 7,040타 모두 켜짐, 키별 횟수 일치, 키 통계 복원, 아래 키는 9동타의 21회뿐 |
 | R150 | AdofaiTweaks 2.9.3 | 에디터 2회 | 126번 일치 |
 | R150 | 없음(내장 뷰어) | 에디터 2회 | 126번 일치 |
 | R150 | 없음, 자동 재생 끔 + 자동 타일 | 일반 1회 (의도한 실패로 종료) | 키 점등 0회 |
 | R145 | Jipper 1.4.9 | 에디터 2회 | 126번 일치, 키 통계 복원 |
 
-일반 경로에서는 LineKeyViewer 쪽 점등 횟수가 126번 중 1번 적게 집계되는 경우가 있었습니다(3번 중 2번). 같은 실행에서 Jipper는 126번이었고, 원인은 밝히지 못했습니다.
+REX는 아직 켜져 있는 키를 다시 누를 때 한 프레임 뒤로 밀리므로 켠 순서가 계획과 일부 다릅니다. LineKeyViewer 쪽 점등 횟수는 126번 중 1번, REX에서 7,040번 중 26번 적게 집계된 적이 있습니다. 같은 실행에서 Jipper는 전부 켜졌고, 원인은 밝히지 못했습니다.
 
 ## 알려진 제한
 
@@ -81,6 +86,7 @@ Windows Sandbox 안의 Mods 폴더에 1.0.0 zip의 파일을 복사하고, 테�
 - AdofaiTweaks 키 뷰어는 자동 재생 중 실제 키 입력을 표시하지 않고, 코드 4096 이상의 키를 표시하지 못합니다.
 - Jipper 1.4.9는 자체 스레드가 키를 읽으므로, 같은 키를 실제로 누르고 있거나 스레드가 입력을 놓치면 통계가 한 번 더 빠질 수 있습니다.
 - 쉼 없이 빨라지는 구간에서는 최소 간격 위반이 드물게 생길 수 있습니다. 섞은 연타 100만 타에서 수십 번이었습니다. 상태 줄에 위반 수가 나옵니다.
+- 게임을 켜자마자 레벨을 열면 JALib 기반 뷰어가 아직 로드되지 않아 그 시도에는 연결되지 않을 수 있습니다. 다음 시도부터 다시 찾습니다.
 - 16키 계단은 초당 100타 이상에서 표 순서로 안정될 때까지 수 초 걸릴 수 있습니다.
 - 한 손만 쓰거나 검지를 끈 키 역할에서는 간격 0.4초 이상의 느린 타일이 한 키로 몰릴 수 있습니다.
 
@@ -151,9 +157,13 @@ Each roll style uses this order, shown for 4 keys `D F J K` with the right hand 
 | Stair (계단) | `J K D F` |
 | Reverse stair (역계단) | `K J F D` |
 
+Tightly packed input (gaps within 12 ms, 35 ms wide at most) counts as a chord and is pressed at once. A chord ignores the roll order and takes the strongest fingers, the same ones every time. An 8-note chord uses all eight fingers from index to pinky, and lower keys start at 9 notes.
+
+Thumb and palm keys (lower keys) are used only in streams where eight fingers would still re-strike the same finger below 75% of the minimum interval. To never use them, set max keys to 8.
+
 Key roles are inferred from the viewer's array order, because no viewer records which finger plays a key. If they differ from your hands, change them in the key role editor. Foot keys are never used.
 
-The status line at the bottom shows the bound viewers, the layout source, the key count and the floor violations of the last plan.
+The status line at the bottom shows the bound viewers, the layout source, the key count and the violations of the last plan. A violation is re-striking the same finger below 75% of the minimum interval.
 
 ## Supported viewers
 
@@ -168,17 +178,18 @@ Autoplay presses do not stay in Jipper's lifetime key stats. During an attempt t
 
 ## Tested setups
 
-The files from the 1.0.0 zip were copied into the Mods folder inside Windows Sandbox, and a test mod turned autoplay on and ran a no-music level at default settings and 60 fps. The UnityModManager installer, the Otto button, non-default roll styles and sound were not checked in game. Roll styles are covered by unit tests.
+The files from the 1.0.0 zip were copied into the Mods folder inside Windows Sandbox, and a test mod turned autoplay on and ran a no-music level at default settings and 60 fps. As a real chart, REX (Camellia) was run to the end with Inward and max 16 keys. The UnityModManager installer, the Otto button, roll styles other than Outward and Inward, and sound were not checked in game. Roll styles are covered by unit tests.
 
 | Game | Key viewer | Route | Result |
 |---|---|---|---|
 | R150 | Jipper 1.6.0 + LineKeyViewer 1.0.2 | Editor twice, normal once | All 126 planned presses fired in order, key stats restored |
+| R150 | Jipper 1.6.0 + LineKeyViewer 1.0.2 | Full REX once | All 7,040 presses lit, per-key counts matched, key stats restored, lower keys only 21 times on 9-note chords |
 | R150 | AdofaiTweaks 2.9.3 | Editor twice | All 126 matched |
 | R150 | None (built-in viewer) | Editor twice | All 126 matched |
 | R150 | None, autoplay off with auto tiles | Normal once (ends in a deliberate fail) | No keys lit |
 | R145 | Jipper 1.4.9 | Editor twice | All 126 matched, key stats restored |
 
-On the normal route LineKeyViewer's lit count sometimes came out 1 short of 126 (2 of 3 runs). Jipper showed 126 in those same runs, and the cause was not determined.
+On REX a key that is still lit is re-pressed one frame later, so the lit order partly differs from the plan. LineKeyViewer's lit count came out 1 short of 126, and 26 short of 7,040 on REX. Jipper lit all of them in those same runs, and the cause was not determined.
 
 ## Known limits
 
@@ -191,6 +202,7 @@ On the normal route LineKeyViewer's lit count sometimes came out 1 short of 126 
 - The AdofaiTweaks key viewer does not show real key presses during autoplay, and cannot show key codes of 4096 or above.
 - Jipper 1.4.9 reads keys on its own thread, so physically holding the same key, or the thread missing a press, can subtract one count too many.
 - Sections that keep speeding up with no pause can rarely break the minimum interval: dozens of times in a million mixed presses. The status line shows the count.
+- Opening a level right after starting the game can miss JALib-based viewers that have not loaded yet, for that attempt only. They are looked up again on the next attempt.
 - 16-key stair can take a few seconds to settle into table order at 100 or more presses per second.
 - With one hand only or an index finger turned off in the key roles, slow tiles 0.4 s or more apart can all land on one key.
 

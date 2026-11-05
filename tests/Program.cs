@@ -68,6 +68,7 @@ namespace AutoFingering.Tests
             Run("2 same-finger floor", TestFloor);
             Run("3 slow alternation", TestSlowAlternation);
             Run("3b style recovery", TestStyleRecovery);
+            Run("3c chords and extra keys", TestChordsAndExtraKeys);
             Run("4 burst anchor", TestBurstAnchor);
             Run("5 triplets", TestTriplets);
             Run("6 holds", TestHolds);
@@ -225,6 +226,14 @@ namespace AutoFingering.Tests
             CheckNoViolations(Layout8(), Stream(500, 0.035, 4), new SolverOptions { Floor = 0.250 }, "floor 250");
             CheckNoViolations(Layout4(), Stream(500, 0.016, 4), new SolverOptions { Floor = 0.060 }, "floor 60");
 
+            // 손가락이 충분한 고른 연타는 위반이 없을 뿐 아니라 권장 간격까지 지켜야 한다.
+            foreach (var (layout, gap, floor) in new[] { (Layout8(), 0.020, 0.130), (Layout4(), 0.035, 0.130), (Layout8(), 0.035, 0.250), (Layout4(), 0.016, 0.060) })
+            {
+                PressEvent[] stream = Stream(500, gap, 4);
+                byte[] slots = FingeringSolver.Solve(stream, layout, new SolverOptions { Floor = floor }).Slot;
+                Check(RecountViolations(stream, slots, floor) == 0, $"gap {gap} floor {floor}: below the recommended interval");
+            }
+
             // 불규칙한 간격: 어떤 8연속 구간도 Floor를 넘도록 간격 하한을 잡았으므로 위반 없이 풀 수 있다.
             for (int seed = 0; seed < 20; seed++)
             {
@@ -251,16 +260,88 @@ namespace AutoFingering.Tests
             Solution forced = FingeringSolver.Solve(impossible, Layout4(), new SolverOptions());
             Check(forced.FloorViolations == impossible.Length - 4,
                 $"4 keys 20ms violations expected {impossible.Length - 4} got {forced.FloorViolations}");
-            Check(forced.FloorViolations == RecountViolations(impossible, forced.Slot, 0.130), "recount matches forced");
+            Check(forced.FloorViolations == RecountViolations(impossible, forced.Slot, 0.130 * 0.75), "recount matches forced");
             Check(Distinct(forced.Slot, 0, impossible.Length) == 4, "forced stream uses every key");
         }
 
         private static void CheckNoViolations(Layout layout, PressEvent[] events, SolverOptions options, string name)
         {
             Solution solution = FingeringSolver.Solve(events, layout, options);
-            int recount = RecountViolations(events, solution.Slot, options.Floor);
+            int recount = RecountViolations(events, solution.Slot, options.Floor * 0.75);
             Check(solution.FloorViolations == 0, $"{name}: reported {solution.FloorViolations} violations");
             Check(recount == solution.FloorViolations, $"{name}: recount {recount} != {solution.FloorViolations}");
+        }
+
+        // 간격 1.4ms로 몰린 동타를 period마다 반복한다. 실제 맵(REX)의 8동타와 같은 모양이다.
+        private static PressEvent[] Chords(int chords, int size, double period)
+        {
+            var events = new PressEvent[chords * size];
+            for (int c = 0; c < chords; c++)
+            {
+                for (int n = 0; n < size; n++) events[c * size + n] = new PressEvent(1 + c * period + n * 0.0014, c);
+            }
+
+            return events;
+        }
+
+        private static IEnumerable<string> ChordSets(byte[] slots, int size)
+        {
+            for (int c = 0; c + size <= slots.Length; c += size)
+            {
+                yield return string.Join(",", slots.Skip(c).Take(size).OrderBy(s => s));
+            }
+        }
+
+        private static void TestChordsAndExtraKeys()
+        {
+            foreach (RollStyle style in Styles)
+            {
+                var options = new SolverOptions { Style = style };
+
+                // 8동타는 8손가락을 그대로 다시 친다. 빠르게 반복해도 아래 키로 돌려 쓰지 않는다.
+                foreach (double period in new[] { 0.125, 0.250, 0.100 })
+                {
+                    Solution eight = FingeringSolver.Solve(Chords(40, 8, period), Layout16(), options);
+                    Check(eight.Slot.All(s => s < 8), $"{style} 8 chord every {period}: used a lower key");
+                    Check(ChordSets(eight.Slot, 8).All(set => set == "0,1,2,3,4,5,6,7"), $"{style} 8 chord every {period}: not all eight fingers");
+                    Check(eight.FloorViolations == 0, $"{style} 8 chord every {period}: {eight.FloorViolations} violations");
+                }
+
+                // 9동타는 아래 키를 하나만 더 쓰고, 묶음마다 같은 손가락을 잡는다.
+                Solution nine = FingeringSolver.Solve(Chords(30, 9, 0.250), Layout16(), options);
+                Check(ChordSets(nine.Slot, 9).Distinct().Count() == 1, $"{style} 9 chord: finger set changes");
+                Check(nine.Slot.Take(9).Count(s => s >= 8) == 1, $"{style} 9 chord: expected one lower key");
+
+                // 손가락 수보다 적은 동타도 묶음마다 같은 손가락을 잡는다.
+                foreach (int size in new[] { 2, 3, 4, 5, 6, 7 })
+                {
+                    Solution small = FingeringSolver.Solve(Chords(30, size, 0.250), Layout16(), options);
+                    Check(ChordSets(small.Slot, size).Distinct().Count() == 1, $"{style} {size} chord: finger set changes");
+                    Check(small.Slot.All(s => s < 8), $"{style} {size} chord: used a lower key");
+                }
+            }
+
+            // 최대 키를 8로 막으면 9동타도 아래 키를 쓰지 않고, 못 지킨 만큼 위반으로 센다.
+            Solution capped = FingeringSolver.Solve(Chords(30, 9, 0.250), Layout16(), new SolverOptions { MaxKeys = 8 });
+            Check(capped.Slot.All(s => s < 8), "max 8 keys: used a lower key");
+            Check(capped.FloorViolations >= 30, $"max 8 keys: {capped.FloorViolations} violations");
+
+            // 8손가락으로 칠 수 있는 연타에는 아래 키가 없고, 기준에 2ms 모자라도 같은 키를 겹쳐 치지 않는다.
+            foreach (double gap in new[] { 0.013, 0.016, 0.020 })
+            {
+                Solution stream = FingeringSolver.Solve(Stream(400, gap, 4), Layout16(), new SolverOptions());
+                Check(stream.Slot.All(s => s < 8), $"stream gap {gap}: used a lower key");
+                Check(stream.FloorViolations == 0, $"stream gap {gap}: {stream.FloorViolations} violations");
+                for (int i = 1; i < stream.Slot.Length; i++)
+                {
+                    Check(stream.Slot[i] != stream.Slot[i - 1], $"stream gap {gap}: repeated a key at {i}");
+                }
+            }
+
+            // 8손가락이 실제 한계를 넘는 연타만 아래 키를 쓴다. 이런 연타를 묶음으로 잘라 동타로 보면 안 된다.
+            Solution extreme = FingeringSolver.Solve(Stream(400, 0.010, 4), Layout16(), new SolverOptions());
+            Check(extreme.Slot.Any(s => s >= 8), "extreme stream: expected lower keys");
+            Check(extreme.FloorViolations == 0, $"extreme stream: {extreme.FloorViolations} violations");
         }
 
         private static void TestSlowAlternation()
@@ -960,7 +1041,7 @@ namespace AutoFingering.Tests
             Check(first.FloorViolations == second.FloorViolations, "same input gives same violations");
             Console.WriteLine($"  sample checksum {Checksum(first.Slot):x8}, violations {first.FloorViolations}");
             // 프로세스가 달라도 같아야 하므로 값을 고정한다. 비용 가중치를 일부러 바꿨을 때만 갱신한다.
-            Check(Checksum(first.Slot) == 0x8d2196fe, "checksum changed between runs");
+            Check(Checksum(first.Slot) == 0xcb812ce6, "checksum changed between runs");
 
             PressEvent[] million = MixedStream(1000000, 11);
             var watch = Stopwatch.StartNew();
@@ -968,7 +1049,7 @@ namespace AutoFingering.Tests
             watch.Stop();
             Console.WriteLine($"  1,000,000 events, 16 keys: {watch.Elapsed.TotalSeconds:F2} s, violations {big.FloorViolations}");
             Check(watch.Elapsed.TotalSeconds < 20, $"performance target missed: {watch.Elapsed.TotalSeconds:F2} s");
-            Check(big.FloorViolations == RecountViolations(million, big.Slot, 0.130), "million recount");
+            Check(big.FloorViolations == RecountViolations(million, big.Slot, 0.130 * 0.75), "million recount");
             // 리셋 부채의 대가로 위반이 드물게 생긴다. 이 정도를 넘으면 절충이 깨진 것이다.
             Check(big.FloorViolations <= 100, $"million violations {big.FloorViolations}");
         }

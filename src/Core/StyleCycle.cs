@@ -9,6 +9,9 @@ namespace AutoFingering.Core
         public int K;
         public byte[] Cycle;
         public int OffStart;
+
+        // 엄지나 손바닥 키가 들어간 tier. 네 손가락으로 칠 수 있는 구간에서는 쓰지 않는다.
+        public bool UsesExtraKeys;
     }
 
     public static class StyleCycle
@@ -133,7 +136,21 @@ namespace AutoFingering.Core
             List<byte> off = BuildGroup(Other(options.MainHand), used, slotOf, options.Style);
             int offStart = main.Count;
             main.AddRange(off);
-            return new Tier { K = main.Count, Cycle = main.ToArray(), OffStart = offStart };
+            return new Tier { K = main.Count, Cycle = main.ToArray(), OffStart = offStart, UsesExtraKeys = HasExtraKey(used) };
+        }
+
+        private static bool HasExtraKey(bool[,] used)
+        {
+            for (int hand = 0; hand < 2; hand++)
+            {
+                if (used[hand, (int)Finger.Thumb1] || used[hand, (int)Finger.Thumb2]
+                    || used[hand, (int)Finger.Palm1] || used[hand, (int)Finger.Palm2])
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static List<byte> BuildGroup(Hand hand, bool[,] used, int[,] slotOf, RollStyle style)

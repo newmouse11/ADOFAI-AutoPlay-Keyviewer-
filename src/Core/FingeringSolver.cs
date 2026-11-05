@@ -19,10 +19,27 @@ namespace AutoFingering.Core
 
         // 리셋 부채: 리셋을 거듭한 경로는 다음 리셋이 비싸진다. 없으면 롱노트 하나로 표 순서를 잃은 경로가
         // 표 순서로 돌아오지 못한 채 연타 끝까지 리셋을 반복한다. 자연 진행으로 천천히 갚고 긴 틈에서 0이 된다.
-        // 대가: 쉼 없이 빨라지는 구간에서는 리셋이 Floor 비용보다 비싸져 최소 간격 위반이 드물게 생긴다.
-        // 측정치는 섞은 연타 100만 타에 수십 번이다. 위반 한 번보다 스타일 순서를 끝까지 잃는 쪽이 더 나빠 이쪽을 택했다.
+        // 대가: 쉼 없이 빨라지는 구간에서는 리셋이 같은 손가락 비용보다 비싸져 위반이 드물게 생긴다.
+        // 위반 한 번보다 스타일 순서를 끝까지 잃는 쪽이 더 나빠 이쪽을 택했다.
         private const double DebtPerReset = 1;
         private const double DebtRepayPerStep = 0.1;
+
+        // 이 간격 안에서 이어지고 전체 폭도 이 안이면 사람은 한 번에 누른다(동타).
+        // 폭이 넘으면 묶음 전체가 빠른 연타다. 연타를 잘라 동타로 보면 안 된다.
+        private const double ChordGap = 0.012;
+        private const double ChordSpan = 0.035;
+
+        // Floor는 손가락을 더 쓰는 기준이고, 이 비율까지는 같은 손가락으로 실제로 칠 수 있다.
+        // 동타를 다시 치는 간격과 엄지·손바닥 키를 꺼내는 기준, 위반 집계가 모두 이 값을 쓴다.
+        private const double HardFloorRatio = 0.75;
+
+        // 네 손가락으로 칠 수 있는데 아래 키를 쓰는 경로를 막는다. 같은 손가락 비용의 최댓값(약 62)보다 작으면 뚫린다.
+        private const double NeedlessExtraKeyCost = 70;
+
+        // 동타에서 아래 키 하나의 값. 약지·새끼를 빼고 아래 키를 넣는 조합을 막을 만큼 크고,
+        // 손가락 수를 넘는 동타에서 꼭 필요한 아래 키를 막지 않을 만큼 작다.
+        private const double ChordExtraKeyCost = 1;
+        private const double ChordOffHandTieBreak = 0.001;
 
         // 두 간격이 이 비율 안이면 같은 간격으로 본다.
         private const double SameGapRatio = 0.1;
@@ -49,15 +66,17 @@ namespace AutoFingering.Core
             }
 
             StateTable states = StateTable.Build(tiers, layout);
+            int[] chordSize = FindChords(events);
             int finalState;
-            byte[] back = RunViterbi(events, layout.Slots.Length, tiers, states, options, token, out finalState);
+            byte[] back = RunViterbi(events, chordSize, layout.Slots.Length, tiers, states, options, token, out finalState);
             Backtrack(back, finalState, states, result.Slot);
-            result.FloorViolations = CountViolations(events, result.Slot, layout.Slots.Length, options.Floor);
+            result.FloorViolations = CountViolations(events, result.Slot, layout.Slots.Length, options.Floor * HardFloorRatio);
             return result;
         }
 
         private static byte[] RunViterbi(
             PressEvent[] events,
+            int[] chordSize,
             int slots,
             Tier[] tiers,
             StateTable states,
@@ -69,6 +88,8 @@ namespace AutoFingering.Core
             int count = states.Count;
             double floor = options.Floor;
             double comfort = floor * (options.Base == 4 ? 2 : 1);
+            double hardFloor = floor * HardFloorRatio;
+            bool[] extraKeysNeeded = FindExtraKeyNeed(events, chordSize, FingerKeyCount(tiers), hardFloor);
             double[,] excess = BuildExcessTable(tiers);
 
             // ponytail: 역추적표가 N*S 바이트다(100만 이벤트, 16키면 약 61MB). 더 긴 레벨이 필요하면 체크포인트 역추적으로 바꾼다.
@@ -90,12 +111,19 @@ namespace AutoFingering.Core
                 PressEvent press = events[i];
                 bool first = i == 0;
                 double gap = first ? double.PositiveInfinity : press.Time - events[i - 1].Time;
-                bool burst = gap >= BurstGap - TimeEpsilon;
-                double reset = first ? 0 : ResetCost(gap, floor);
+                int chord = chordSize[i];
+
+                // 동타의 첫 음은 손을 새로 놓는 순간이다. 긴 틈처럼 시작 위치로 돌아가야 매번 같은 손가락 묶음을 잡는다.
+                bool chordStart = chord > 0 && (first || chordSize[i - 1] == 0 || gap > ChordGap + TimeEpsilon);
+                bool burst = chordStart || gap >= BurstGap - TimeEpsilon;
+                double reset = first ? 0 : burst ? BurstReset : ResetCost(gap, floor);
                 bool onBeat = IsOnBeat(press.Beat);
                 bool ternary = HasTernaryNeighbor(events, i) && !RepeatsEveryTwoNotes(events, i);
                 bool binary = !ternary && !RepeatsEveryThreeNotes(events, i);
-                int needed = NeededTier(events, i, tiers, comfort);
+                // 동타는 손가락을 돌려 쓸 수 없으니 같은 손가락으로 다시 친다. 기반은 리듬 개념이라 동타에는 적용하지 않는다.
+                double eventFloor = chord > 0 ? hardFloor : floor;
+                double eventComfort = chord > 0 ? hardFloor : comfort;
+                int needed = NeededTier(events, i, tiers, eventComfort);
                 double occupiedUntil = press.ReleaseTime >= 0 ? press.ReleaseTime : press.Time;
 
                 double nextBestCost = double.PositiveInfinity;
@@ -108,12 +136,15 @@ namespace AutoFingering.Core
 
                     // 같은 손가락 비용까지 합쳐 비교해야 표 순서로 돌아오는 경로가 살아남는다.
                     // 비용 없이 비교하면 잠시 2.0 넘게 뒤처진 경로가 다음 이벤트에 덮어써진다.
-                    double total = cost[pred] + SameFingerCost(press.Time, busy[pred * slots + slot], floor, comfort);
+                    // 동타의 첫 음에서는 앞 묶음에서 이어 가는 경로에 이득을 주지 않는다. 이득이 있으면 값이 같은 두 조합을 번갈아 고른다.
+                    double total = cost[pred]
+                        + (chordStart ? reset : 0)
+                        + SameFingerCost(press.Time, busy[pred * slots + slot], eventFloor, hardFloor, eventComfort);
                     if (!first)
                     {
                         double viaReset = cost[best]
-                            + reset * (1 + debt[best])
-                            + SameFingerCost(press.Time, busy[best * slots + slot], floor, comfort);
+                            + (chordStart ? reset : reset * (1 + debt[best]))
+                            + SameFingerCost(press.Time, busy[best * slots + slot], eventFloor, hardFloor, eventComfort);
                         if (viaReset < total || (viaReset == total && best < pred))
                         {
                             pred = best;
@@ -121,12 +152,25 @@ namespace AutoFingering.Core
                         }
                     }
 
+                    if (!extraKeysNeeded[i] && states.UsesExtraKeys[s]) total += NeedlessExtraKeyCost;
                     total += excess[states.TierIndex[s], needed];
                     total += states.WeakCost[s];
-                    if (onBeat) total += states.BeatCost[s];
-                    if (burst) total += states.BurstCost[s];
-                    if (ternary) total += states.TernaryMismatch[s];
-                    else if (binary) total += states.BinaryMismatch[s];
+
+                    // 동타 안의 음은 한 번에 누르므로 시작 위치, 박자, 리듬 단위는 의미가 없다. 어떤 손가락을 쓰는지만 본다.
+                    if (chord > 0)
+                    {
+                        if (states.IsExtraKey[s]) total += ChordExtraKeyCost;
+
+                        // 값이 같은 조합(왼손 약지를 뺄지 오른손 약지를 뺄지)이 묶음마다 바뀌지 않도록 주손 쪽으로 동률을 깬다.
+                        if (states.IsOffHand[s]) total += ChordOffHandTieBreak;
+                    }
+                    else
+                    {
+                        if (burst) total += states.BurstCost[s];
+                        if (onBeat) total += states.BeatCost[s];
+                        if (ternary) total += states.TernaryMismatch[s];
+                        else if (binary) total += states.BinaryMismatch[s];
+                    }
 
                     nextDebt[s] = burst
                         ? 0
@@ -163,20 +207,91 @@ namespace AutoFingering.Core
             return back;
         }
 
-        private static double SameFingerCost(double time, double occupiedUntil, double floor, double comfort)
+        // 끊김 없이 이어지고 간격이 짧을수록 가파른 곡선이어야 한다. 경계에 턱이 있으면 2ms 모자란 연타에서
+        // 일부러 같은 키를 겹쳐 쳐서 타이밍을 미는 경로가 오히려 싸져 말이 안 되는 타법이 나온다.
+        private static double SameFingerCost(double time, double occupiedUntil, double floor, double hardFloor, double comfort)
         {
             if (time < occupiedUntil) return BusyCost;
 
             double dt = time - occupiedUntil;
-            if (dt < floor - TimeEpsilon) return 10 + 40 * (floor - dt) / floor;
+            if (dt < hardFloor - TimeEpsilon) return 2.25 + 80 * (hardFloor - dt) / floor;
+            if (dt < floor - TimeEpsilon) return 1 + 5 * (floor - dt) / floor;
             if (dt < comfort - TimeEpsilon) return 0.5 * (comfort - dt) / comfort;
             return 0;
         }
 
         private static double ResetCost(double gap, double floor)
         {
-            if (gap >= BurstGap - TimeEpsilon) return BurstReset;
             return gap >= floor - TimeEpsilon ? 0.6 : 2.0;
+        }
+
+        // 이어지는 짧은 간격의 묶음을 찾아 이벤트별 묶음 크기를 돌려준다. 동타가 아니면 0이다.
+        private static int[] FindChords(PressEvent[] events)
+        {
+            var sizes = new int[events.Length];
+            int start = 0;
+            for (int i = 1; i <= events.Length; i++)
+            {
+                if (i < events.Length && events[i].Time - events[i - 1].Time <= ChordGap + TimeEpsilon) continue;
+
+                int count = i - start;
+                if (count >= 2 && events[i - 1].Time - events[start].Time <= ChordSpan + TimeEpsilon)
+                {
+                    for (int j = start; j < i; j++) sizes[j] = count;
+                }
+
+                start = i;
+            }
+
+            return sizes;
+        }
+
+        // 엄지·손바닥 키 없이 쓸 수 있는 가장 큰 tier의 키 수. 없으면 0이다.
+        private static int FingerKeyCount(Tier[] tiers)
+        {
+            int keys = 0;
+            foreach (Tier tier in tiers)
+            {
+                if (!tier.UsesExtraKeys && tier.K > keys) keys = tier.K;
+            }
+
+            return keys;
+        }
+
+        // 동타는 손가락 수를 넘을 때만, 연타는 네 손가락을 다 돌려도 실제로 칠 수 없을 때만 아래 키를 꺼낸다.
+        // 경계에서 앞뒤로 네 손가락 한 바퀴만큼 넓힌다. 그 타에서 바로 끊으면 방금 친 손가락을 곧바로 다시 치게 된다.
+        private static bool[] FindExtraKeyNeed(PressEvent[] events, int[] chordSize, int fingerKeys, double hardFloor)
+        {
+            var need = new bool[events.Length];
+            if (fingerKeys == 0)
+            {
+                for (int i = 0; i < need.Length; i++) need[i] = true;
+                return need;
+            }
+
+            var core = new bool[events.Length];
+            for (int i = 0; i < core.Length; i++)
+            {
+                core[i] = chordSize[i] > 0
+                    ? chordSize[i] > fingerKeys
+                    : i >= fingerKeys && events[i].Time - events[i - fingerKeys].Time < hardFloor - TimeEpsilon;
+            }
+
+            int until = -1;
+            for (int i = 0; i < need.Length; i++)
+            {
+                if (core[i]) until = i + fingerKeys;
+                need[i] = core[i] || (chordSize[i] == 0 && i <= until);
+            }
+
+            until = need.Length;
+            for (int i = need.Length - 1; i >= 0; i--)
+            {
+                if (core[i]) until = i - fingerKeys;
+                need[i] = need[i] || (chordSize[i] == 0 && i >= until);
+            }
+
+            return need;
         }
 
         private static bool SameGap(double a, double b)
@@ -264,7 +379,7 @@ namespace AutoFingering.Core
             }
         }
 
-        private static int CountViolations(PressEvent[] events, byte[] chosen, int slots, double floor)
+        private static int CountViolations(PressEvent[] events, byte[] chosen, int slots, double hardFloor)
         {
             var occupiedUntil = new double[slots];
             for (int i = 0; i < slots; i++) occupiedUntil[i] = double.NegativeInfinity;
@@ -272,7 +387,7 @@ namespace AutoFingering.Core
             int violations = 0;
             for (int i = 0; i < events.Length; i++)
             {
-                if (events[i].Time - occupiedUntil[chosen[i]] < floor - TimeEpsilon) violations++;
+                if (events[i].Time - occupiedUntil[chosen[i]] < hardFloor - TimeEpsilon) violations++;
                 occupiedUntil[chosen[i]] = events[i].ReleaseTime >= 0 ? events[i].ReleaseTime : events[i].Time;
             }
 
@@ -286,6 +401,9 @@ namespace AutoFingering.Core
             public byte[] Previous;
             public byte[] Slot;
             public int[] TierIndex;
+            public bool[] UsesExtraKeys;
+            public bool[] IsExtraKey;
+            public bool[] IsOffHand;
             public double[] WeakCost;
             public double[] BeatCost;
             public double[] BurstCost;
@@ -303,6 +421,9 @@ namespace AutoFingering.Core
                     Previous = new byte[count],
                     Slot = new byte[count],
                     TierIndex = new int[count],
+                    UsesExtraKeys = new bool[count],
+                    IsExtraKey = new bool[count],
+                    IsOffHand = new bool[count],
                     WeakCost = new double[count],
                     BeatCost = new double[count],
                     BurstCost = new double[count],
@@ -324,6 +445,9 @@ namespace AutoFingering.Core
                         table.Previous[s] = (byte)(start + (phase + tier.K - 1) % tier.K);
                         table.Slot[s] = slot;
                         table.TierIndex[s] = t;
+                        table.UsesExtraKeys[s] = tier.UsesExtraKeys;
+                        table.IsExtraKey[s] = layout.Slots[slot].Finger > Finger.Pinky;
+                        table.IsOffHand[s] = phase >= tier.OffStart;
                         table.WeakCost[s] = WeakFingerCost[(int)layout.Slots[slot].Finger];
                         table.BeatCost[s] = mainStart ? 0 : offStart ? 0.1 : 0.3;
                         // 정박만 있는 연타는 주손 시작과 부손 시작의 합계가 정확히 같다. 주손에서 시작하도록 동률만 깬다.
