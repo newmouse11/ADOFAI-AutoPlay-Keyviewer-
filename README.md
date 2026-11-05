@@ -68,7 +68,7 @@ Windows Sandbox 안의 Mods 폴더에 1.0.0 zip의 파일을 복사하고, 테�
 | R150 | 없음, 자동 재생 끔 + 자동 타일 | 일반 1회 (의도한 실패로 종료) | 키 점등 0회 |
 | R145 | Jipper 1.4.9 | 에디터 2회 | 126번 일치, 키 통계 복원 |
 
-LineKeyViewer 쪽 점등 횟수가 한 번의 실행에서 126번 중 1번 적게 집계된 적이 있습니다. 같은 실행에서 Jipper는 126번이었습니다.
+일반 경로에서는 LineKeyViewer 쪽 점등 횟수가 126번 중 1번 적게 집계되는 경우가 있었습니다(3번 중 2번). 같은 실행에서 Jipper는 126번이었고, 원인은 밝히지 못했습니다.
 
 ## 알려진 제한
 
@@ -178,7 +178,7 @@ The files from the 1.0.0 zip were copied into the Mods folder inside Windows San
 | R150 | None, autoplay off with auto tiles | Normal once (ends in a deliberate fail) | No keys lit |
 | R145 | Jipper 1.4.9 | Editor twice | All 126 matched, key stats restored |
 
-In one run LineKeyViewer's lit count came out 1 short of 126. Jipper showed 126 in that same run.
+On the normal route LineKeyViewer's lit count sometimes came out 1 short of 126 (2 of 3 runs). Jipper showed 126 in those same runs, and the cause was not determined.
 
 ## Known limits
 
