@@ -3,11 +3,14 @@ using System.Collections.Generic;
 
 namespace AutoFingering.Core
 {
-    // 두 키를 번갈아 친 시간 동안 같은 키를 다시 치기까지의 간격을 모아 2키 최대 속도(초당 타수)를 구한다.
+    // 두 키를 번갈아 친 시간 동안 같은 키를 다시 치기까지의 간격을 모아 2키 최대 속도를 구한다.
     // 키끼리의 간격이 아니라 키별 간격을 쓰므로 번갈아 치는 리듬이 고르지 않아도 값이 흔들리지 않는다.
+    // BPM은 분당 타수다. Jipper의 CBPM과 같은 기준이고, 60으로 나누면 KPS다.
     public sealed class SpeedTest
     {
         public const double Duration = 5;
+
+        private const double SecondsPerMinute = 60;
 
         // 한 손가락으로 초당 40번은 못 친다. 이보다 짧으면 키 스위치의 떨림으로 본다.
         private const double BounceGap = 0.025;
@@ -63,15 +66,15 @@ namespace AutoFingering.Core
             Presses++;
         }
 
-        // 측정 중 화면에 보여 줄 값이다. 최종값은 Kps()로 따로 구한다.
-        public double LiveKps()
+        // 측정 중 화면에 보여 줄 값이다. 최종값은 Bpm()으로 따로 구한다.
+        public double LiveBpm()
         {
             double elapsed = latestPress - firstPress;
-            return Presses > 1 && elapsed > 0 ? (Presses - 1) / elapsed : 0;
+            return Presses > 1 && elapsed > 0 ? (Presses - 1) * SecondsPerMinute / elapsed : 0;
         }
 
         // 두 키를 모두 충분히 치지 않았으면 0이다. 위아래 10%를 버려 잠깐 멈춘 구간과 튄 입력을 뺀다.
-        public double Kps()
+        public double Bpm()
         {
             if (repeats[0] < MinRepeatsPerKey || repeats[1] < MinRepeatsPerKey) return 0;
 
@@ -83,7 +86,7 @@ namespace AutoFingering.Core
             double meanGap = sum / (sorted.Count - trim * 2);
 
             // 번갈아 치면 한 키는 두 타마다 한 번 눌리므로 같은 키 간격 한 번에 두 타가 들어간다.
-            return 2 / meanGap;
+            return 2 * SecondsPerMinute / meanGap;
         }
     }
 }

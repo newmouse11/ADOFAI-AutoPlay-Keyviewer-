@@ -27,15 +27,15 @@ A Dance of Fire and Ice용 UnityModManager 모드입니다. 게임의 자동 재
 | 주손 | 오른손 / 왼손 | 오른손 |
 | 기반 | 2키 / 4키 | 2키 |
 | 최대 사용 키 | 4, 6, 8, 10, 12, 16, 전체 (뷰어의 키 수를 넘지 못함) | 전체 |
-| 2키 기반 최대 속도 | 테스트 또는 슬라이더, 8.0-33.3 KPS | 15.4 KPS |
+| 2키 기반 최대 속도 | 테스트, 슬라이더 또는 `-`/`+` 버튼, 480-2000 BPM | 923 BPM |
 | 3연타 나누기 | 주손 두 손가락 / 부손 두 손가락 | 주손 두 손가락 |
 | 키 역할 편집 | 슬롯마다 손과 손가락, 또는 사용 안 함. 키 개수별로 저장 | 뷰어 배열 순서로 추정 |
 
-2키 기반 최대 속도는 두 키를 번갈아 칠 때 낼 수 있는 초당 타수(KPS)입니다. 번갈아 치면 한 손가락은 두 타마다 한 번 치므로, 이 값으로 같은 손가락을 다시 칠 수 있는 빠르기를 정합니다. 예를 들어 15.4 KPS면 같은 손가락 간격은 약 130 ms입니다.
+2키 기반 최대 속도는 두 키를 번갈아 칠 때 낼 수 있는 분당 타수(BPM)입니다. Jipper 오버레이의 CBPM과 같은 기준이고, 60으로 나누면 KPS입니다. 번갈아 치면 한 손가락은 두 타마다 한 번 치므로, 이 값으로 같은 손가락을 다시 칠 수 있는 빠르기를 정합니다. 예를 들어 961 BPM이면 16.0 KPS이고, 같은 손가락 간격은 약 125 ms입니다.
 
-`테스트`를 누르고 두 키를 번갈아 5초 동안 최대한 빠르게 치면 값이 바로 적용됩니다. 시간은 첫 입력부터 재고, 처음 누른 두 키만 셉니다. 직접 정하려면 옆의 슬라이더를 움직입니다.
+`테스트`를 누르고 두 키를 번갈아 5초 동안 최대한 빠르게 치면 값이 바로 적용됩니다. 시간은 첫 입력부터 재고, 처음 누른 두 키만 셉니다. 직접 정하려면 옆의 슬라이더를 움직이거나 `-`, `+`로 1 BPM씩 맞춥니다.
 
-테스트는 메인 메뉴에서만 됩니다. 게임은 UnityModManager 창이 열려 있어도 키 입력을 처리하므로, 에디터에서는 연타가 타일을 고칠 수 있고 커스텀 레벨 선택에서는 레벨이 시작될 수 있기 때문입니다. 메인 메뉴에서도 키를 누르면 행성이 움직이고, 그러다 화면이 바뀌면 테스트는 취소됩니다. 테스트 중 누른 키는 실제 입력이므로 키 뷰어에 켜지고 Jipper 키 통계에도 더해집니다.
+테스트는 메인 메뉴에서만 됩니다. 게임은 UnityModManager 창이 열려 있어도 키 입력을 처리하므로, 에디터에서는 연타가 타일을 고칠 수 있고 커스텀 레벨 선택에서는 레벨이 시작될 수 있기 때문입니다. 테스트하는 동안에는 행성이 키에 반응하지 않습니다. 그래도 화면이 바뀌면 테스트는 취소됩니다. 테스트 중 누른 키는 실제 입력이므로 키 뷰어에 켜지고 Jipper 키 통계에도 더해집니다.
 
 롤 방식별 순서는 다음과 같습니다. 오른손이 주손인 4키 `D F J K` 기준입니다.
 
@@ -150,15 +150,15 @@ It only displays. It sends no input and never changes `RDC.auto`, so it has no e
 | Main hand | Right / Left | Right |
 | Base | 2-key / 4-key | 2-key |
 | Max keys used | 4, 6, 8, 10, 12, 16, All (limited by the viewer's key count) | All |
-| 2-key max speed | Test or slider, 8.0-33.3 KPS | 15.4 KPS |
+| 2-key max speed | Test, slider or `-`/`+` buttons, 480-2000 BPM | 923 BPM |
 | Triplet split | Main hand two fingers / Off hand two fingers | Main hand two fingers |
 | Key role editor | Hand and finger per slot, or not used. Saved per key count | Inferred from viewer array order |
 
-2-key max speed is how many presses per second (KPS) you can reach alternating two keys. Alternating means each finger plays every second press, so this value sets how fast the same finger may repeat. For example, 15.4 KPS means about 130 ms between presses of one finger.
+2-key max speed is how many presses per minute (BPM) you can reach alternating two keys. It matches CBPM on the Jipper overlay, and dividing by 60 gives KPS. Alternating means each finger plays every second press, so this value sets how fast the same finger may repeat. For example, 961 BPM is 16.0 KPS, which means about 125 ms between presses of one finger.
 
-Press `Test` and alternate two keys as fast as you can for 5 seconds, and the value applies right away. Timing starts at your first press, and only the first two keys you press count. To set it yourself, move the slider next to the button.
+Press `Test` and alternate two keys as fast as you can for 5 seconds, and the value applies right away. Timing starts at your first press, and only the first two keys you press count. To set it yourself, move the slider next to the button, or use `-` and `+` for steps of 1 BPM.
 
-The test only runs from the main menu. The game keeps handling keys while the UnityModManager window is open, so mashing could edit tiles in the editor or start a level in custom level select. Keys also move the planet in the main menu, and the test stops if that changes the screen. Keys pressed during the test are real input, so they light your key viewer and add to Jipper's key stats.
+The test only runs from the main menu. The game keeps handling keys while the UnityModManager window is open, so mashing could edit tiles in the editor or start a level in custom level select. The planet ignores keys during the test, and the test stops if the screen changes anyway. Keys pressed during the test are real input, so they light your key viewer and add to Jipper's key stats.
 
 Each roll style uses this order, shown for 4 keys `D F J K` with the right hand as main hand.
 

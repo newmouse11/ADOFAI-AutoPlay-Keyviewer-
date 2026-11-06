@@ -92,23 +92,24 @@ namespace AutoFingering.Tests
             // 게임은 프레임마다 키를 읽으므로 입력 시각이 프레임 경계로 밀린 상태로 들어온다.
             static double Frame(double time) => Math.Ceiling(time * 60) / 60;
 
-            static SpeedTest Alternate(double kps, Func<double, double> at)
+            static SpeedTest Alternate(double bpm, Func<double, double> at)
             {
                 var test = new SpeedTest();
-                for (int i = 0; i / kps < SpeedTest.Duration + 1; i++)
+                double gap = 60 / bpm;
+                for (int i = 0; i * gap < SpeedTest.Duration + 1; i++)
                 {
-                    test.Press(i % 2 == 0 ? KeyA : KeyB, at(100 + i / kps));
+                    test.Press(i % 2 == 0 ? KeyA : KeyB, at(100 + i * gap));
                 }
 
                 return test;
             }
 
-            Check(Math.Abs(Alternate(15, t => t).Kps() - 15) < 0.01, "exact alternation");
+            Check(Math.Abs(Alternate(961, t => t).Bpm() - 961) < 0.5, "exact alternation");
 
-            foreach (double kps in new[] { 8.0, 11.3, 13.7, 18.0, 24.0 })
+            foreach (double bpm in new[] { 480.0, 678.0, 822.0, 961.0, 1080.0, 1440.0 })
             {
-                double measured = Alternate(kps, Frame).Kps();
-                Check(Math.Abs(measured - kps) / kps < 0.02, $"60 fps at {kps} KPS measured {measured}");
+                double measured = Alternate(bpm, Frame).Bpm();
+                Check(Math.Abs(measured - bpm) / bpm < 0.02, $"60 fps at {bpm} BPM measured {measured}");
             }
 
             // 번갈아 치는 리듬이 어긋나도 같은 키 간격이 같으면 값은 같아야 한다.
@@ -119,11 +120,11 @@ namespace AutoFingering.Tests
                 uneven.Press(KeyB, 100.05 + i * 0.2);
             }
 
-            Check(Math.Abs(uneven.Kps() - 10) < 0.01, $"uneven rhythm measured {uneven.Kps()}");
+            Check(Math.Abs(uneven.Bpm() - 600) < 0.5, $"uneven rhythm measured {uneven.Bpm()}");
 
             var paused = new SpeedTest();
             for (int i = 0; i < 60; i++) paused.Press(i % 2 == 0 ? KeyA : KeyB, 100 + i / 15.0 + (i >= 30 ? 0.6 : 0));
-            Check(Math.Abs(paused.Kps() - 15) / 15 < 0.05, $"a short stop measured {paused.Kps()}");
+            Check(Math.Abs(paused.Bpm() - 900) / 900 < 0.05, $"a short stop measured {paused.Bpm()}");
 
             var bouncy = new SpeedTest();
             for (int i = 0; i < 40; i++)
@@ -134,7 +135,7 @@ namespace AutoFingering.Tests
             }
 
             Check(bouncy.Presses == 40, $"bounced presses counted: {bouncy.Presses}");
-            Check(Math.Abs(bouncy.Kps() - 12) < 0.01, $"bounce measured {bouncy.Kps()}");
+            Check(Math.Abs(bouncy.Bpm() - 720) < 0.5, $"bounce measured {bouncy.Bpm()}");
 
             var thirdKey = new SpeedTest();
             for (int i = 0; i < 40; i++)
@@ -143,26 +144,26 @@ namespace AutoFingering.Tests
                 if (i > 0) thirdKey.Press(999, 100.02 + i / 12.0);
             }
 
-            Check(Math.Abs(thirdKey.Kps() - 12) < 0.01, $"third key measured {thirdKey.Kps()}");
+            Check(Math.Abs(thirdKey.Bpm() - 720) < 0.5, $"third key measured {thirdKey.Bpm()}");
 
             // 처음 건드린 키가 측정 키로 잡혀도 몇 번 안 눌리면 틀린 값을 내지 않고 다시 하게 한다.
             var strayKey = new SpeedTest();
             strayKey.Press(999, 100);
             for (int i = 0; i < 40; i++) strayKey.Press(i % 2 == 0 ? KeyA : KeyB, 100.1 + i / 12.0);
-            Check(strayKey.Kps() == 0, $"a stray first key measured {strayKey.Kps()}");
+            Check(strayKey.Bpm() == 0, $"a stray first key measured {strayKey.Bpm()}");
 
             var oneKey = new SpeedTest();
             for (int i = 0; i < 40; i++) oneKey.Press(KeyA, 100 + i / 8.0);
-            Check(oneKey.Kps() == 0, "one key has no 2-key speed");
+            Check(oneKey.Bpm() == 0, "one key has no 2-key speed");
 
             var tooFew = new SpeedTest();
             for (int i = 0; i < 6; i++) tooFew.Press(i % 2 == 0 ? KeyA : KeyB, 100 + i * 0.1);
-            Check(tooFew.Kps() == 0, "too few presses");
+            Check(tooFew.Bpm() == 0, "too few presses");
 
             var idle = new SpeedTest();
             Check(!idle.Started && !idle.IsOver(1000), "the clock waits for the first press");
             Check(idle.Remaining(1000) == SpeedTest.Duration, "full time left before the first press");
-            Check(idle.Kps() == 0 && idle.LiveKps() == 0, "no value before any press");
+            Check(idle.Bpm() == 0 && idle.LiveBpm() == 0, "no value before any press");
 
             var timed = new SpeedTest();
             timed.Press(KeyA, 100);

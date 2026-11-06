@@ -14,11 +14,11 @@ namespace AutoFingering
         public const double MinFloorMs = 60;
         public const double MaxFloorMs = 250;
 
-        // 번갈아 치면 한 손가락은 두 타마다 한 번 치므로 같은 손가락 간격은 2 ÷ 초당 타수다.
-        private const double TwoKeyMsPerSecond = 2000;
+        // 번갈아 치면 한 손가락은 두 타마다 한 번 치므로, 같은 손가락 간격은 BPM의 두 박이다.
+        private const double TwoBeatsMsAtOneBpm = 120000;
 
-        public const double MinTwoKeyKps = TwoKeyMsPerSecond / MaxFloorMs;
-        public const double MaxTwoKeyKps = TwoKeyMsPerSecond / MinFloorMs;
+        public const double MinTwoKeyBpm = TwoBeatsMsAtOneBpm / MaxFloorMs;
+        public const double MaxTwoKeyBpm = TwoBeatsMsAtOneBpm / MinFloorMs;
 
         public UiLanguage Language = UiLanguage.Game;
         public RollStyle Style = RollStyle.Outward;
@@ -37,14 +37,14 @@ namespace AutoFingering
         }
 
         // 프로퍼티로 두면 XmlSerializer가 저장 항목으로 삼는다.
-        public double GetTwoKeyKps()
+        public double GetTwoKeyBpm()
         {
-            return TwoKeyMsPerSecond / ClampedFloorMs();
+            return TwoBeatsMsAtOneBpm / ClampedFloorMs();
         }
 
-        public void SetTwoKeyKps(double kps)
+        public void SetTwoKeyBpm(double bpm)
         {
-            FloorMs = TwoKeyMsPerSecond / Math.Min(Math.Max(kps, MinTwoKeyKps), MaxTwoKeyKps);
+            FloorMs = TwoBeatsMsAtOneBpm / Math.Min(Math.Max(bpm, MinTwoKeyBpm), MaxTwoKeyBpm);
         }
 
         public SolverOptions ToOptions()

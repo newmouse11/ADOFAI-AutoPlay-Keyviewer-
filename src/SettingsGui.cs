@@ -14,7 +14,7 @@ namespace AutoFingering
     {
         private const float LabelWidth = 180f;
         private const float SliderWidth = 200f;
-        private const float ValueWidth = 64f;
+        private const float ValueWidth = 72f;
         private const float ProbeInterval = 1f;
 
         private static readonly int[] MaxKeyChoices = { 4, 6, 8, 10, 12, 16, SolverOptions.AllKeys };
@@ -122,7 +122,8 @@ namespace AutoFingering
             EndRow();
         }
 
-        // 직접 지정을 입력칸이 아닌 슬라이더로 둔다. 에디터는 Backspace로 타일을 지우므로 키보드를 쓰면 안 된다.
+        // 직접 지정을 입력칸이 아닌 슬라이더와 버튼으로 둔다. 에디터는 Backspace로 타일을 지우므로 키보드를 쓰면 안 된다.
+        // 슬라이더는 한 칸이 약 7 BPM이라 정확한 값은 -, + 버튼으로 맞춘다.
         private static void DrawMaxSpeed(Settings settings)
         {
             BeginRow(T("2키 기반 최대 속도", "2-key max speed"));
@@ -133,16 +134,19 @@ namespace AutoFingering
                 else SpeedRunner.Start();
             }
 
-            float current = (float)settings.GetTwoKeyKps();
+            float current = (float)settings.GetTwoKeyBpm();
             float value = GUILayout.HorizontalSlider(
-                current, (float)Settings.MinTwoKeyKps, (float)Settings.MaxTwoKeyKps, GUILayout.Width(SliderWidth));
-            if (value != current)
+                current, (float)Settings.MinTwoKeyBpm, (float)Settings.MaxTwoKeyBpm, GUILayout.Width(SliderWidth));
+            double wanted = value != current ? Math.Round(value) : current;
+            if (GUILayout.Button("-", GUILayout.ExpandWidth(false))) wanted = Math.Round(settings.GetTwoKeyBpm()) - 1;
+            if (GUILayout.Button("+", GUILayout.ExpandWidth(false))) wanted = Math.Round(settings.GetTwoKeyBpm()) + 1;
+            if (wanted != current)
             {
-                settings.SetTwoKeyKps(Math.Round(value, 1));
+                settings.SetTwoKeyBpm(wanted);
                 SpeedRunner.Reset();
             }
 
-            GUILayout.Label(settings.GetTwoKeyKps().ToString("0.0") + " KPS", GUILayout.Width(ValueWidth));
+            GUILayout.Label(settings.GetTwoKeyBpm().ToString("0") + " BPM", GUILayout.Width(ValueWidth));
             GUILayout.Label(SpeedTestMessage(settings));
             EndRow();
         }
@@ -155,15 +159,15 @@ namespace AutoFingering
                     return T("두 키를 번갈아 5초 동안 최대한 빠르게 치세요. 첫 입력부터 잽니다.",
                         "Alternate two keys as fast as you can for 5 seconds. Timing starts at your first press.");
                 case SpeedRunner.Status.Measuring:
-                    return string.Format(T("남은 시간 {0:0.0}초, 현재 {1:0.0} KPS", "{0:0.0} s left, now {1:0.0} KPS"),
-                        SpeedRunner.Remaining, SpeedRunner.LiveKps);
+                    return string.Format(T("남은 시간 {0:0.0}초, 현재 {1:0} BPM", "{0:0.0} s left, now {1:0} BPM"),
+                        SpeedRunner.Remaining, SpeedRunner.LiveBpm);
                 case SpeedRunner.Status.Done:
                     // 슬라이더 범위를 벗어난 측정값은 끝값으로 잘린다. 잰 값을 그대로 쓴 것처럼 보이면 안 된다.
-                    double applied = settings.GetTwoKeyKps();
-                    return Math.Abs(SpeedRunner.ResultKps - applied) < 0.05
-                        ? string.Format(T("측정 결과 {0:0.0} KPS를 적용했습니다.", "Applied the measured {0:0.0} KPS."), applied)
-                        : string.Format(T("측정 결과 {0:0.0} KPS는 범위 밖이라 {1:0.0} KPS를 적용했습니다.", "Measured {0:0.0} KPS is out of range, so {1:0.0} KPS was applied."),
-                            SpeedRunner.ResultKps, applied);
+                    double applied = settings.GetTwoKeyBpm();
+                    return Math.Abs(SpeedRunner.ResultBpm - applied) < 0.5
+                        ? string.Format(T("측정 결과 {0:0} BPM을 적용했습니다.", "Applied the measured {0:0} BPM."), applied)
+                        : string.Format(T("측정 결과 {0:0} BPM은 범위 밖이라 {1:0} BPM을 적용했습니다.", "Measured {0:0} BPM is out of range, so {1:0} BPM was applied."),
+                            SpeedRunner.ResultBpm, applied);
                 case SpeedRunner.Status.TooFew:
                     return T("두 키를 번갈아 더 쳐 주세요. 값은 바꾸지 않았습니다.", "Alternate two keys for longer. The value was not changed.");
                 case SpeedRunner.Status.NeedMainMenu:
