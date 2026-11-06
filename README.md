@@ -66,7 +66,8 @@ Windows Sandbox 안의 Mods 폴더에 1.0.0 zip의 파일을 복사하고, 테�
 
 | 게임 | 키 뷰어 | 경로 | 결과 |
 |---|---|---|---|
-| R150 | Jipper 1.6.0 + LineKeyViewer 1.0.2 | 에디터 2회, 일반 1회 | 계획한 126번과 켠 순서 일치, 키 통계 복원 |
+| R150 | Jipper 1.6.0 + LineKeyViewer 1.0.2 | 에디터 2회 | 계획한 126번과 켠 순서 일치, 키 통계 복원 |
+| R150 | Jipper 1.6.0 (LineKeyViewer는 로드 전이라 연결되지 않음) | 일반 1회 | 계획한 126번과 켠 순서 일치, 키 통계 복원 |
 | R150 | Jipper 1.6.0 + LineKeyViewer 1.0.2 | REX 전체 1회 | 7,040타 모두 켜짐, 키별 횟수 일치, 키 통계 복원, 아래 키는 9동타의 21회뿐 |
 | R150 | AdofaiTweaks 2.9.3 | 에디터 2회 | 126번 일치 |
 | R150 | 없음(내장 뷰어) | 에디터 2회 | 126번 일치 |
@@ -110,7 +111,7 @@ dotnet build src/AutoFingering.csproj -c Release -p:GameDir=<게임 폴더>
 
 `ponytail:` 주석은 일부러 단순하게 둔 부분과 그 한계를 표시합니다.
 
-라이선스는 아직 정하지 않았습니다.
+라이선스는 [MIT](LICENSE)입니다.
 
 ---
 
@@ -182,7 +183,8 @@ The files from the 1.0.0 zip were copied into the Mods folder inside Windows San
 
 | Game | Key viewer | Route | Result |
 |---|---|---|---|
-| R150 | Jipper 1.6.0 + LineKeyViewer 1.0.2 | Editor twice, normal once | All 126 planned presses fired in order, key stats restored |
+| R150 | Jipper 1.6.0 + LineKeyViewer 1.0.2 | Editor twice | All 126 planned presses fired in order, key stats restored |
+| R150 | Jipper 1.6.0 (LineKeyViewer had not loaded yet, so it was not bound) | Normal once | All 126 planned presses fired in order, key stats restored |
 | R150 | Jipper 1.6.0 + LineKeyViewer 1.0.2 | Full REX once | All 7,040 presses lit, per-key counts matched, key stats restored, lower keys only 21 times on 9-note chords |
 | R150 | AdofaiTweaks 2.9.3 | Editor twice | All 126 matched |
 | R150 | None (built-in viewer) | Editor twice | All 126 matched |
@@ -226,4 +228,4 @@ Use `-GameOld` and `-GameNew` if your game paths differ. The output is `dist/Aut
 
 `ponytail:` comments mark deliberate simplifications and their limits.
 
-No license has been chosen yet.
+Licensed under [MIT](LICENSE).
