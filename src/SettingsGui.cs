@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using AutoFingering.Game;
 using AutoFingering.Viewers;
@@ -8,47 +9,23 @@ namespace AutoFingering
 {
     using AutoFingering.Core;
 
-    internal static class Palette
-    {
-        public static readonly Color32 Base = new Color32(0x0B, 0x0E, 0x11, 0xFF);
-        public static readonly Color32 Surface = new Color32(0x18, 0x1A, 0x20, 0xFF);
-        public static readonly Color32 Card = new Color32(0x1E, 0x23, 0x29, 0xFF);
-        public static readonly Color32 Elevated = new Color32(0x2B, 0x31, 0x39, 0xFF);
-        public static readonly Color32 Border = new Color32(0x2B, 0x31, 0x39, 0xFF);
-        public static readonly Color32 Text = new Color32(0xEA, 0xEC, 0xEF, 0xFF);
-        public static readonly Color32 Secondary = new Color32(0xB7, 0xBD, 0xC6, 0xFF);
-        public static readonly Color32 Tertiary = new Color32(0x84, 0x8E, 0x9C, 0xFF);
-        public static readonly Color32 Disabled = new Color32(0x5E, 0x66, 0x73, 0xFF);
-        public static readonly Color32 Primary = new Color32(0xFC, 0xD5, 0x35, 0xFF);
-    }
-
+    // 다른 모드와 같은 모양이 되도록 UMM 기본 스킨을 그대로 쓴다.
     internal static class SettingsGui
     {
         private const float LabelWidth = 180f;
         private const float SliderWidth = 200f;
         private const float ValueWidth = 64f;
-        private const int FontSize = 12;
-        private const float RowHeight = 20f;
+        private const float ProbeInterval = 1f;
 
         private static readonly int[] MaxKeyChoices = { 4, 6, 8, 10, 12, 16, SolverOptions.AllKeys };
-        private static readonly int[] BuiltInChoices = { 4, 8, 12, 16 };
 
         private static List<ViewerAdapter> probed = new List<ViewerAdapter>();
+        private static float nextProbeTime;
         private static bool rolesOpen;
         private static bool rolesOpenRequested;
         private static Layout layout;
         private static string layoutSource = "";
         private static string viewerNames = "";
-
-        private static GUIStyle labelStyle;
-        private static GUIStyle mutedStyle;
-        private static GUIStyle idleStyle;
-        private static GUIStyle disabledStyle;
-        private static GUIStyle selectedStyle;
-        private static GUIStyle activeRollStyle;
-        private static GUIStyle sliderStyle;
-        private static GUIStyle thumbStyle;
-        private static Texture2D cardTexture;
 
         private static bool Korean
         {
@@ -60,21 +37,25 @@ namespace AutoFingering
             }
         }
 
-        // 뷰어 조회는 리플렉션이라 프레임마다 돌리지 않고 창을 열 때만 한다.
-        public static void OnShow(UnityModManager.ModEntry modEntry)
+        public static void OnHide(UnityModManager.ModEntry modEntry)
         {
-            probed = ViewerHub.Probe();
+            SpeedRunner.Reset();
         }
 
         public static void Draw(UnityModManager.ModEntry modEntry)
         {
-            EnsureStyles();
-
             // IMGUI는 Layout과 그 뒤 이벤트의 컨트롤 수가 같아야 하므로 슬롯 목록과 펼침 상태는 Layout 때만 바꾼다.
-            if (layout == null || Event.current.type == EventType.Layout)
+            if (Event.current.type == EventType.Layout)
             {
-                rolesOpen = rolesOpenRequested;
+                // 뷰어 조회는 리플렉션이라 프레임마다 돌리지 않는다. 창을 연 채 뷰어 모드를 켜고 끌 수 있어 1초마다 다시 본다.
+                if (Time.unscaledTime >= nextProbeTime)
+                {
+                    nextProbeTime = Time.unscaledTime + ProbeInterval;
+                    probed = ViewerHub.Probe();
+                }
+
                 layout = ViewerHub.PreviewLayout(probed, out layoutSource, out viewerNames);
+                rolesOpen = rolesOpenRequested && layout != null;
             }
 
             Settings settings = Main.Settings;
@@ -83,10 +64,9 @@ namespace AutoFingering
             DrawHand(settings);
             DrawBase(settings);
             DrawMaxKeys(settings);
-            DrawFloor(settings);
+            DrawMaxSpeed(settings);
             DrawSplit(settings);
             DrawRoles(settings);
-            DrawBuiltIn(settings);
             DrawStatus();
         }
 
@@ -107,18 +87,11 @@ namespace AutoFingering
         private static void DrawRollStyle(Settings settings)
         {
             BeginRow(T("롤 방식", "Roll style"));
-            RollChoice(settings, RollStyle.Outward, T("안밖", "Outward"));
-            RollChoice(settings, RollStyle.Inward, T("밖안", "Inward"));
-            RollChoice(settings, RollStyle.Stair, T("계단", "Stair"));
-            RollChoice(settings, RollStyle.ReverseStair, T("역계단", "Reverse stair"));
+            if (Choice(T("안밖", "Outward"), settings.Style == RollStyle.Outward)) settings.Style = RollStyle.Outward;
+            if (Choice(T("밖안", "Inward"), settings.Style == RollStyle.Inward)) settings.Style = RollStyle.Inward;
+            if (Choice(T("계단", "Stair"), settings.Style == RollStyle.Stair)) settings.Style = RollStyle.Stair;
+            if (Choice(T("역계단", "Reverse stair"), settings.Style == RollStyle.ReverseStair)) settings.Style = RollStyle.ReverseStair;
             EndRow();
-        }
-
-        private static void RollChoice(Settings settings, RollStyle style, string label)
-        {
-            // 노란색은 선택된 롤 방식과 내장 뷰어의 눌린 키에만 쓴다.
-            GUIStyle look = settings.Style == style ? activeRollStyle : idleStyle;
-            if (GUILayout.Button(label, look, GUILayout.ExpandWidth(false))) settings.Style = style;
         }
 
         private static void DrawHand(Settings settings)
@@ -149,14 +122,57 @@ namespace AutoFingering
             EndRow();
         }
 
-        private static void DrawFloor(Settings settings)
+        // 직접 지정을 입력칸이 아닌 슬라이더로 둔다. 에디터는 Backspace로 타일을 지우므로 키보드를 쓰면 안 된다.
+        private static void DrawMaxSpeed(Settings settings)
         {
-            BeginRow(T("같은 손가락 최소 간격", "Same-finger minimum interval"));
+            BeginRow(T("2키 기반 최대 속도", "2-key max speed"));
+            string action = SpeedRunner.Running ? T("취소", "Cancel") : T("테스트", "Test");
+            if (GUILayout.Button(action, GUILayout.ExpandWidth(false)))
+            {
+                if (SpeedRunner.Running) SpeedRunner.Reset();
+                else SpeedRunner.Start();
+            }
+
+            float current = (float)settings.GetTwoKeyKps();
             float value = GUILayout.HorizontalSlider(
-                settings.FloorMs, Settings.MinFloorMs, Settings.MaxFloorMs, sliderStyle, thumbStyle, GUILayout.Width(SliderWidth));
-            settings.FloorMs = Mathf.RoundToInt(value);
-            GUILayout.Label(settings.FloorMs + " ms", mutedStyle, GUILayout.Width(ValueWidth));
+                current, (float)Settings.MinTwoKeyKps, (float)Settings.MaxTwoKeyKps, GUILayout.Width(SliderWidth));
+            if (value != current)
+            {
+                settings.SetTwoKeyKps(Math.Round(value, 1));
+                SpeedRunner.Reset();
+            }
+
+            GUILayout.Label(settings.GetTwoKeyKps().ToString("0.0") + " KPS", GUILayout.Width(ValueWidth));
+            GUILayout.Label(SpeedTestMessage(settings));
             EndRow();
+        }
+
+        private static string SpeedTestMessage(Settings settings)
+        {
+            switch (SpeedRunner.Current)
+            {
+                case SpeedRunner.Status.Waiting:
+                    return T("두 키를 번갈아 5초 동안 최대한 빠르게 치세요. 첫 입력부터 잽니다.",
+                        "Alternate two keys as fast as you can for 5 seconds. Timing starts at your first press.");
+                case SpeedRunner.Status.Measuring:
+                    return string.Format(T("남은 시간 {0:0.0}초, 현재 {1:0.0} KPS", "{0:0.0} s left, now {1:0.0} KPS"),
+                        SpeedRunner.Remaining, SpeedRunner.LiveKps);
+                case SpeedRunner.Status.Done:
+                    // 슬라이더 범위를 벗어난 측정값은 끝값으로 잘린다. 잰 값을 그대로 쓴 것처럼 보이면 안 된다.
+                    double applied = settings.GetTwoKeyKps();
+                    return Math.Abs(SpeedRunner.ResultKps - applied) < 0.05
+                        ? string.Format(T("측정 결과 {0:0.0} KPS를 적용했습니다.", "Applied the measured {0:0.0} KPS."), applied)
+                        : string.Format(T("측정 결과 {0:0.0} KPS는 범위 밖이라 {1:0.0} KPS를 적용했습니다.", "Measured {0:0.0} KPS is out of range, so {1:0.0} KPS was applied."),
+                            SpeedRunner.ResultKps, applied);
+                case SpeedRunner.Status.TooFew:
+                    return T("두 키를 번갈아 더 쳐 주세요. 값은 바꾸지 않았습니다.", "Alternate two keys for longer. The value was not changed.");
+                case SpeedRunner.Status.NeedMainMenu:
+                    return T("메인 메뉴에서 테스트할 수 있습니다.", "The test runs from the main menu.");
+                case SpeedRunner.Status.Interrupted:
+                    return T("화면이 바뀌어 취소했습니다. 값은 바꾸지 않았습니다.", "The screen changed, so the test stopped. The value was not changed.");
+                default:
+                    return "";
+            }
         }
 
         private static void DrawSplit(Settings settings)
@@ -177,19 +193,22 @@ namespace AutoFingering
 
         private static void DrawRoles(Settings settings)
         {
+            if (layout == null) return;
+
             string title = T("키 역할 편집", "Key role editor");
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button((rolesOpen ? "- " : "+ ") + title, rolesOpen ? selectedStyle : idleStyle, GUILayout.ExpandWidth(false)))
+            if (GUILayout.Button((rolesOpen ? "- " : "+ ") + title, GUILayout.ExpandWidth(false)))
             {
                 rolesOpenRequested = !rolesOpen;
             }
 
-            if (rolesOpen && Choice(T("기본값으로", "Reset"), false))
+            if (rolesOpen && GUILayout.Button(T("기본값으로", "Reset"), GUILayout.ExpandWidth(false)))
             {
                 int keyCount = layout.Slots.Length;
                 settings.RoleOverrides.RemoveAll(item => item.KeyCount == keyCount);
             }
 
+            GUILayout.FlexibleSpace();
             GUILayout.EndHorizontal();
             if (!rolesOpen) return;
 
@@ -197,7 +216,7 @@ namespace AutoFingering
             {
                 KeySlot key = layout.Slots[slot];
                 BeginRow(key.Label);
-                if (GUILayout.Button(RoleText(key), key.Enabled ? idleStyle : disabledStyle, GUILayout.Width(SliderWidth)))
+                if (GUILayout.Button(RoleText(key), GUILayout.Width(SliderWidth)))
                 {
                     CycleRole(settings, slot, key);
                 }
@@ -251,54 +270,30 @@ namespace AutoFingering
             item.Finger = state == NotUsed ? key.Finger : (Finger)(state % FingersPerHand);
         }
 
-        private static void DrawBuiltIn(Settings settings)
-        {
-            BeginRow(T("내장 뷰어 키", "Built-in viewer keys"));
-            foreach (int keys in BuiltInChoices)
-            {
-                if (Choice(keys.ToString(), settings.BuiltInKeys == keys)) settings.BuiltInKeys = keys;
-            }
-
-            EndRow();
-
-            float x = Slider(T("내장 뷰어 X", "Built-in viewer X"), settings.BuiltInX, 0f, 1f);
-            float y = Slider(T("내장 뷰어 Y", "Built-in viewer Y"), settings.BuiltInY, 0f, 1f);
-            float scale = Slider(T("내장 뷰어 크기", "Built-in viewer scale"), settings.BuiltInScale, 0.5f, 3f);
-            if (x != settings.BuiltInX || y != settings.BuiltInY || scale != settings.BuiltInScale)
-            {
-                settings.BuiltInX = x;
-                settings.BuiltInY = y;
-                settings.BuiltInScale = scale;
-                BuiltInViewer.ApplyPlacement();
-            }
-        }
-
-        private static float Slider(string title, float value, float min, float max)
-        {
-            BeginRow(title);
-            float result = GUILayout.HorizontalSlider(value, min, max, sliderStyle, thumbStyle, GUILayout.Width(SliderWidth));
-            GUILayout.Label(result.ToString("0.00"), mutedStyle, GUILayout.Width(ValueWidth));
-            EndRow();
-            return result;
-        }
-
         private static void DrawStatus()
         {
+            if (layout == null)
+            {
+                GUILayout.Label(T("연결된 키 뷰어가 없어 키를 표시하지 않습니다. Jipper 같은 키 뷰어 모드를 켜 주세요.",
+                    "No key viewer is bound, so no keys are shown. Turn on a key viewer mod such as Jipper."));
+                return;
+            }
+
             Plan plan = Planner.Latest;
-            string violations = Planner.Solving
+            string overSpeed = Planner.Solving
                 ? T("계산 중", "solving")
                 : plan != null ? plan.Violations.ToString() : "-";
             string status = T("연결된 뷰어: ", "Viewers: ") + viewerNames
                 + T(" | 배치: ", " | Layout: ") + layoutSource
                 + T(" | 키 ", " | Keys: ") + layout.Slots.Length
-                + T(" | 최소 간격 위반: ", " | Floor violations: ") + violations;
-            GUILayout.Label(status, mutedStyle);
+                + T(" | 최대 속도 초과: ", " | Over max speed: ") + overSpeed;
+            GUILayout.Label(status);
         }
 
         private static void BeginRow(string title)
         {
             GUILayout.BeginHorizontal();
-            GUILayout.Label(title, labelStyle, GUILayout.Width(LabelWidth), GUILayout.Height(RowHeight));
+            GUILayout.Label(title, GUILayout.Width(LabelWidth));
         }
 
         private static void EndRow()
@@ -309,77 +304,7 @@ namespace AutoFingering
 
         private static bool Choice(string label, bool selected)
         {
-            return GUILayout.Button(label, selected ? selectedStyle : idleStyle, GUILayout.ExpandWidth(false));
-        }
-
-        // 텍스처는 씬 전환의 UnloadUnusedAssets에 지워질 수 있어 HideAndDontSave로 만들고, 그래도 사라지면 다시 만든다.
-        private static void EnsureStyles()
-        {
-            if (labelStyle != null && cardTexture != null) return;
-
-            cardTexture = Box(Palette.Card, Palette.Border);
-            Texture2D elevated = Box(Palette.Elevated, Palette.Border);
-            Texture2D primary = Box(Palette.Primary, Palette.Primary);
-            Texture2D thumb = Box(Palette.Secondary, Palette.Secondary);
-
-            labelStyle = Text(Palette.Text);
-            mutedStyle = Text(Palette.Tertiary);
-            idleStyle = Button(cardTexture, Palette.Secondary, elevated, Palette.Text);
-            disabledStyle = Button(cardTexture, Palette.Disabled, elevated, Palette.Text);
-            selectedStyle = Button(elevated, Palette.Text, elevated, Palette.Text);
-            activeRollStyle = Button(primary, Palette.Base, primary, Palette.Base);
-
-            sliderStyle = new GUIStyle { border = new RectOffset(1, 1, 1, 1), fixedHeight = 16f, margin = new RectOffset(0, 4, 4, 4) };
-            sliderStyle.normal.background = cardTexture;
-            thumbStyle = new GUIStyle { border = new RectOffset(1, 1, 1, 1), fixedWidth = 10f, fixedHeight = 16f };
-            thumbStyle.normal.background = thumb;
-        }
-
-        private static GUIStyle Text(Color32 color)
-        {
-            var style = new GUIStyle { fontSize = FontSize, alignment = TextAnchor.MiddleLeft, padding = new RectOffset(0, 4, 0, 0) };
-            style.normal.textColor = color;
-            return style;
-        }
-
-        private static GUIStyle Button(Texture2D normal, Color32 normalText, Texture2D hover, Color32 hoverText)
-        {
-            var style = new GUIStyle
-            {
-                fontSize = FontSize,
-                alignment = TextAnchor.MiddleCenter,
-                border = new RectOffset(1, 1, 1, 1),
-                padding = new RectOffset(8, 8, 0, 0),
-                margin = new RectOffset(0, 2, 1, 1),
-                fixedHeight = 24f,
-            };
-            style.normal.background = normal;
-            style.normal.textColor = normalText;
-            style.hover.background = hover;
-            style.hover.textColor = hoverText;
-            style.active.background = hover;
-            style.active.textColor = hoverText;
-            return style;
-        }
-
-        // 가운데가 면, 둘레가 1픽셀 테두리인 9분할 텍스처. 모서리 반경은 0이다.
-        private static Texture2D Box(Color32 fill, Color32 border)
-        {
-            var texture = new Texture2D(3, 3, TextureFormat.RGBA32, false)
-            {
-                hideFlags = HideFlags.HideAndDontSave,
-                filterMode = FilterMode.Point,
-            };
-            for (int x = 0; x < 3; x++)
-            {
-                for (int y = 0; y < 3; y++)
-                {
-                    texture.SetPixel(x, y, x == 1 && y == 1 ? fill : border);
-                }
-            }
-
-            texture.Apply();
-            return texture;
+            return GUILayout.Toggle(selected, label, GUILayout.ExpandWidth(false));
         }
     }
 }

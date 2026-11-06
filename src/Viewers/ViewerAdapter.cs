@@ -45,7 +45,7 @@ namespace AutoFingering.Viewers
             return entry.Assembly?.GetType(fullName, false);
         }
 
-        // 모드는 켜져 있는데 멤버가 없으면 뷰어 쪽이 바뀐 것이다. 말없이 내장 뷰어로 넘어가면 원인을 알 수 없다.
+        // 모드는 켜져 있는데 멤버가 없으면 뷰어 쪽이 바뀐 것이다. 말없이 건너뛰면 원인을 알 수 없다.
         protected bool Missing(string member)
         {
             Log.Once(Name + " " + member, member + " 멤버를 찾지 못해 이 뷰어를 건너뜀");

@@ -24,7 +24,7 @@ namespace AutoFingering
             Harmony = new Harmony(modEntry.Info.Id);
             modEntry.OnToggle = OnToggle;
             modEntry.OnUpdate = OnUpdate;
-            modEntry.OnShowGUI = SettingsGui.OnShow;
+            modEntry.OnHideGUI = SettingsGui.OnHide;
             modEntry.OnGUI = SettingsGui.Draw;
             modEntry.OnSaveGUI = entry => Settings.Save(entry);
             return true;
@@ -37,6 +37,7 @@ namespace AutoFingering
             // AdofaiTweaks의 OnEndInputs와 키 통계 복원은 Clear 안에서 끝난다.
             Session.Clear();
             Planner.Cancel();
+            SpeedRunner.Reset();
             if (patched)
             {
                 Harmony.UnpatchAll(modEntry.Info.Id);
@@ -60,6 +61,7 @@ namespace AutoFingering
                 }
 
                 Session.Tick();
+                SpeedRunner.Tick();
             }
             catch (Exception e)
             {
