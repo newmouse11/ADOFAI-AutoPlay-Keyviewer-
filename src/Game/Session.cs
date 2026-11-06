@@ -113,6 +113,13 @@ namespace AutoFingering.Game
         {
             scene = SceneManager.GetActiveScene();
             Layout layout = ViewerHub.Bind();
+            if (layout == null)
+            {
+                // 표시할 곳이 없으면 계산도 하지 않는다. 착지마다 뷰어를 다시 찾지 않도록 이번 시도는 끝난 것으로 둔다.
+                ended = true;
+                return;
+            }
+
             scheduler = new KeyScheduler(layout.Slots.Length, ViewerHub.Fire);
             active = true;
             planKey = Planner.Request(layout);

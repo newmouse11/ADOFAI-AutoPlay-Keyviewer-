@@ -10,21 +10,18 @@ namespace AutoFingering.Viewers
     {
         private static readonly List<ViewerAdapter> Bound = new List<ViewerAdapter>();
 
-        private static Layout layout;
         private static string layoutSource = "";
-        private static bool takeOverFailed;
 
-        // 시도 시작 때마다 부른다. JALib 모드는 비동기로 뜨므로 로드 시점에는 아직 없다.
+        // 시도 시작 때마다 부른다. JALib 모드는 비동기로 뜨므로 로드 시점에는 아직 없다. 묶인 뷰어가 없으면 null이다.
         public static Layout Bind()
         {
             End();
-            takeOverFailed = false;
             Bound.AddRange(Probe());
-            if (Bound.Count == 0) Bound.Add(new BuiltInViewer());
+            if (Bound.Count == 0) return null;
 
             // Probe가 Jipper, LineKeyViewer, AdofaiTweaks 순서이므로 첫 번째가 배치 기준이다.
             layoutSource = Bound[0].Name;
-            layout = BuildLayout(Bound[0]);
+            Layout layout = BuildLayout(Bound[0]);
 
             for (int i = Bound.Count - 1; i >= 0; i--)
             {
@@ -41,8 +38,7 @@ namespace AutoFingering.Viewers
                 }
             }
 
-            if (Bound.Count == 0) TakeOver();
-            return layout;
+            return Bound.Count > 0 ? layout : null;
         }
 
         public static List<ViewerAdapter> Probe()
@@ -85,15 +81,15 @@ namespace AutoFingering.Viewers
         public static Layout PreviewLayout(List<ViewerAdapter> probed, out string source, out string names)
         {
             List<ViewerAdapter> list = Bound.Count > 0 ? Bound : probed;
-            ViewerAdapter authority = list.Count > 0 ? list[0] : new BuiltInViewer();
-            source = Bound.Count > 0 ? layoutSource : authority.Name;
+            source = names = "";
+            if (list.Count == 0) return null;
 
-            var shownNames = new string[Math.Max(list.Count, 1)];
-            shownNames[0] = authority.Name;
-            for (int i = 1; i < list.Count; i++) shownNames[i] = list[i].Name;
+            source = Bound.Count > 0 ? layoutSource : list[0].Name;
+            var shownNames = new string[list.Count];
+            for (int i = 0; i < list.Count; i++) shownNames[i] = list[i].Name;
             names = string.Join(", ", shownNames);
 
-            return BuildLayout(authority);
+            return BuildLayout(list[0]);
         }
 
         private static Layout BuildLayout(ViewerAdapter adapter)
@@ -135,8 +131,6 @@ namespace AutoFingering.Viewers
                     Drop(i);
                 }
             }
-
-            if (Bound.Count == 0) TakeOver();
         }
 
         private static void Drop(int position)
@@ -150,32 +144,6 @@ namespace AutoFingering.Viewers
             catch (Exception e)
             {
                 Log.Once(adapter.Name + " end", e);
-            }
-        }
-
-        private static void TakeOver()
-        {
-            if (takeOverFailed) return;
-
-            try
-            {
-                var codes = new int[layout.Slots.Length];
-                var labels = new string[codes.Length];
-                for (int i = 0; i < codes.Length; i++)
-                {
-                    codes[i] = layout.Slots[i].KeyCode;
-                    labels[i] = layout.Slots[i].Label;
-                }
-
-                var viewer = new BuiltInViewer(codes, labels);
-                viewer.Map = MapSlots(viewer, layout);
-                viewer.Begin();
-                Bound.Add(viewer);
-            }
-            catch (Exception e)
-            {
-                takeOverFailed = true;
-                Log.Once("built-in viewer", e);
             }
         }
     }
