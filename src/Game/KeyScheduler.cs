@@ -8,8 +8,9 @@ namespace AutoFingering.Game
     // 시계는 Session이 Time.time으로 넣어 준다. Time.time은 일시정지에 멈추므로 멈춘 동안 탭 불이 그대로 유지된다.
     internal sealed class KeyScheduler
     {
+        // 지퍼의 실제 누름 시간은 속도와 상관없이 대체로 50~83 ms다. 오래 켜 두면 언제 친 키인지 읽기 어렵다.
         private const float MinTapSeconds = 0.05f;
-        private const float MaxTapSeconds = 0.12f;
+        private const float MaxTapSeconds = 0.07f;
         private const float GapShare = 0.8f;
         private const int NoEvent = -1;
 

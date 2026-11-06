@@ -28,7 +28,6 @@ A Dance of Fire and Ice용 UnityModManager 모드입니다. 게임의 자동 재
 | 기반 | 2키 / 4키 | 2키 |
 | 최대 사용 키 | 4, 6, 8, 10, 12, 16, 전체 (뷰어의 키 수를 넘지 못함) | 전체 |
 | 2키 기반 최대 속도 | 테스트, 슬라이더 또는 `-`/`+` 버튼, 480-2000 BPM | 923 BPM |
-| 3연타 나누기 | 주손 두 손가락 / 부손 두 손가락 | 주손 두 손가락 |
 | 키 역할 편집 | 슬롯마다 손과 손가락, 또는 사용 안 함. 키 개수별로 저장 | 뷰어 배열 순서로 추정 |
 
 2키 기반 최대 속도는 두 키를 번갈아 칠 때 낼 수 있는 분당 타수(BPM)입니다. Jipper 오버레이의 CBPM과 같은 기준이고, 60으로 나누면 KPS입니다. 번갈아 치면 한 손가락은 두 타마다 한 번 치므로, 이 값으로 같은 손가락을 다시 칠 수 있는 빠르기를 정합니다. 예를 들어 961 BPM이면 16.0 KPS이고, 같은 손가락 간격은 약 125 ms입니다.
@@ -37,7 +36,22 @@ A Dance of Fire and Ice용 UnityModManager 모드입니다. 게임의 자동 재
 
 테스트는 메인 메뉴에서만 됩니다. 게임은 UnityModManager 창이 열려 있어도 키 입력을 처리하므로, 에디터에서는 연타가 타일을 고칠 수 있고 커스텀 레벨 선택에서는 레벨이 시작될 수 있기 때문입니다. 테스트하는 동안에는 행성이 키에 반응하지 않고, 끝나면 바로 다시 반응합니다. 그래도 화면이 바뀌면 테스트는 취소됩니다. 테스트 중 누른 키는 실제 입력이므로 키 뷰어에 켜지고 Jipper 키 통계에도 더해집니다.
 
-롤 방식별 순서는 다음과 같습니다. 오른손이 주손인 4키 `D F J K` 기준입니다.
+## 타법
+
+세계 1위 [Jipper](https://www.youtube.com/@jipper1214)의 키뷰어를 영상에서 프레임 단위로 읽어 얻은 실제 타법을 기준으로 만들었습니다. 사람은 음마다 손가락을 고르지 않고 손 단위로 묶어서 칩니다. 그래서 입력을 **왼손 묶음과 오른손 묶음**으로 나눕니다. 묶음의 손 모양은 음 수로 정해지므로, 반복되는 리듬에는 대체로 같은 모양이 나와 외워서 따라 치기 쉽습니다.
+
+**빠르기:** 빠를수록 손가락을 늘립니다. 아래 표는 고른 연타를 왼손 주손, 밖안으로 계산한 값입니다. BPM은 1분에 누르는 횟수이고 20 BPM 단위로 쟀습니다.
+
+| 기반, 2키 기반 최대 속도 | `F` | `F J` | `D F K J` | `A S D F ; L K J` |
+|---|---|---|---|---|
+| 4키기반, 1120 BPM | 280까지 | 300-580 | 600-1120, 1460-2020 | 1140-1440, 2040부터 |
+| 2키기반, 1120 BPM | 400까지 | 420-820 | 840-2020 | 2040부터 |
+| 4키기반, 798 BPM | 180까지 | 200-580 | 600-780, 1040-1440 | 800-1020, 1460부터 |
+| 2키기반, 798 BPM | 280까지 | 300-580 | 600-1440 | 1460부터 |
+
+4키기반에서 `D F K J`가 다시 나오는 구간은 손당 2음씩 치는 규칙에서 나옵니다. 이 규칙을 좁히면 REX의 키 일치가 72.4%에서 59.5%로 떨어져 그대로 두었습니다. 다만 그 빠르기로 길게 이어지는 고른 연타는 분석한 영상에 거의 없어서, 이 구간 자체는 지퍼와 비교하지 못했습니다.
+
+**롤 방식**은 묶음을 나누는 데 영향을 주지 않고, 묶음 안의 방향만 정합니다. 오른손이 주손인 4키 기준입니다.
 
 | 롤 방식 | 순서 |
 |---|---|
@@ -46,9 +60,19 @@ A Dance of Fire and Ice용 UnityModManager 모드입니다. 게임의 자동 재
 | 계단 | `J K D F` |
 | 역계단 | `K J F D` |
 
-짧은 간격으로 몰린 입력(간격 12 ms 이내, 전체 폭 35 ms 이내)은 동타로 보고 한 번에 누릅니다. 동타는 롤 순서와 상관없이 가장 강한 손가락 조합을 묶음마다 똑같이 잡습니다. 8동타는 양손 검지부터 새끼까지 8손가락이고, 9동타부터 아래 키를 씁니다.
+**동타:** 간격 12 ms 이내, 전체 폭 35 ms 이내의 입력은 동타로 보고 한 번에 누릅니다. 2~4동타는 양손에 나누지 않고 한 손에 담아 손을 번갈아 갑니다(`[D F S] [J K L] [D F] [J K]`). 느린 동타는 같은 손으로 이어질 수 있습니다. 5동타는 엄지가 있으면 한 손, 없으면 3과 2로 나눕니다. 6동타는 양손 셋씩, 8동타는 8손가락이고, 9동타부터 주손 엄지가 더해집니다. 8동타는 최소 간격보다 조금 빠르게 반복돼도 모양을 돌려 쓰지 않습니다.
 
-엄지와 손바닥 키(아래 키)는 8손가락을 다 돌려도 같은 손가락이 최대 속도의 약 1.33배보다 빨라지는 연타에서만 씁니다. 아래 키를 아예 쓰지 않으려면 최대 사용 키를 8로 둡니다.
+**아래 키:** 엄지와 손바닥 키는 동타를 돕거나, 8손가락을 다 돌려도 실제로 못 치는 연타에서만 씁니다. 아예 쓰지 않으려면 최대 사용 키를 8로 둡니다.
+
+**지퍼와 얼마나 같은가:** 같은 맵의 지퍼 플레이와 입력마다 비교한 값입니다. 지퍼의 설정(왼손 주손, 밖안, 1120 BPM)으로 계산했습니다. 반복 일관성은 간격이 같은 6타가 가장 흔한 키 순서로 나온 비율이고, 괄호는 지퍼 본인의 값입니다.
+
+| 맵 | 입력 수 | 키 일치 | 손 일치 | 이전 판 키 일치 | 반복 일관성 |
+|---|---|---|---|---|---|
+| First Town Of This Journey, 풀 4키기반 | 1,875 | 91.9% | 97.9% | 26.2% | 69.2% (66.4%) |
+| First Town Of This Journey 1.2배속, 풀 2키기반 | 1,875 | 93.7% | 98.1% | 30.4% | 86.3% (71.3%) |
+| REX, Pure Perfect | 7,040 | 72.4% | 86.5% | 22.7% | 57.4% (34.9%) |
+
+## 키 역할과 상태 줄
 
 키 역할은 뷰어 배열 순서에서 추정한 값입니다. 어떤 뷰어에도 손가락 정보가 없기 때문입니다. 실제 손 배치와 다르면 키 역할 편집에서 고칩니다. 발 키는 쓰지 않습니다.
 
@@ -91,11 +115,10 @@ REX는 아직 켜져 있는 키를 다시 누를 때 한 프레임 뒤로 밀리
 - 시도 도중 게임이 꺼지면(창을 닫는 경우 포함) Jipper 키 통계가 복원되지 않을 수 있습니다. Jipper 1.4.9는 자체 스레드가 저장하므로 이 가능성이 더 큽니다.
 - AdofaiTweaks 키 뷰어는 자동 재생 중 실제 키 입력을 표시하지 않고, 코드 4096 이상의 키를 표시하지 못합니다.
 - Jipper 1.4.9는 자체 스레드가 키를 읽으므로, 같은 키를 실제로 누르고 있거나 스레드가 입력을 놓치면 통계가 한 번 더 빠질 수 있습니다.
-- 쉼 없이 빨라지는 구간에서는 최대 속도 초과가 드물게 생길 수 있습니다. 섞은 연타 100만 타에서 수십 번이었습니다. 상태 줄에 초과 횟수가 나옵니다.
+- 타법 값은 지퍼 영상의 맵 2곡에 맞췄습니다. 다른 성격의 맵에서는 일치도가 낮을 수 있습니다.
+- 아주 빠른 구간에서는 최대 속도 초과가 생길 수 있습니다. 상태 줄에 초과 횟수가 나옵니다.
 - 2키 기반 최대 속도는 두 손가락으로 재서 모든 손가락에 같게 적용합니다. 약지나 소지가 유독 느려도 따로 낮추지 않습니다.
 - 게임을 켜자마자 레벨을 열면 JALib 기반 뷰어가 아직 로드되지 않아 그 시도에는 연결되지 않을 수 있습니다. 다음 시도부터 다시 찾습니다.
-- 16키 계단은 초당 100타 이상에서 표 순서로 안정될 때까지 수 초 걸릴 수 있습니다.
-- 한 손만 쓰거나 검지를 끈 키 역할에서는 간격 0.4초 이상의 느린 타일이 한 키로 몰릴 수 있습니다.
 
 ## 빌드
 
@@ -151,7 +174,6 @@ It only displays. It sends no input and never changes `RDC.auto`, so it has no e
 | Base | 2-key / 4-key | 2-key |
 | Max keys used | 4, 6, 8, 10, 12, 16, All (limited by the viewer's key count) | All |
 | 2-key max speed | Test, slider or `-`/`+` buttons, 480-2000 BPM | 923 BPM |
-| Triplet split | Main hand two fingers / Off hand two fingers | Main hand two fingers |
 | Key role editor | Hand and finger per slot, or not used. Saved per key count | Inferred from viewer array order |
 
 2-key max speed is how many presses per minute (BPM) you can reach alternating two keys. It matches CBPM on the Jipper overlay, and dividing by 60 gives KPS. Alternating means each finger plays every second press, so this value sets how fast the same finger may repeat. For example, 961 BPM is 16.0 KPS, which means about 125 ms between presses of one finger.
@@ -160,7 +182,22 @@ Press `Test` and alternate two keys as fast as you can for 5 seconds, and the va
 
 The test only runs from the main menu. The game keeps handling keys while the UnityModManager window is open, so mashing could edit tiles in the editor or start a level in custom level select. The planet ignores keys during the test and responds again as soon as it ends, and the test stops if the screen changes anyway. Keys pressed during the test are real input, so they light your key viewer and add to Jipper's key stats.
 
-Each roll style uses this order, shown for 4 keys `D F J K` with the right hand as main hand.
+## Fingering
+
+The fingering follows real play by world rank 1 [Jipper](https://www.youtube.com/@jipper1214), read frame by frame from the key viewer in his videos. People do not choose a finger per note, they play in groups per hand. So input is split into **left hand runs and right hand runs**. The shape of a run follows from its note count, so a repeated rhythm mostly gets the same shape and is easier to memorize.
+
+**Speed:** faster input uses more fingers. The table shows even streams computed with main hand left, Inward. BPM means presses per minute, measured in steps of 20 BPM.
+
+| Base, 2-key max speed | `F` | `F J` | `D F K J` | `A S D F ; L K J` |
+|---|---|---|---|---|
+| 4-key, 1120 BPM | up to 280 | 300-580 | 600-1120, 1460-2020 | 1140-1440, from 2040 |
+| 2-key, 1120 BPM | up to 400 | 420-820 | 840-2020 | from 2040 |
+| 4-key, 798 BPM | up to 180 | 200-580 | 600-780, 1040-1440 | 800-1020, from 1460 |
+| 2-key, 798 BPM | up to 280 | 300-580 | 600-1440 | from 1460 |
+
+The zone where 4-key base returns to `D F K J` comes from the rule that plays two notes per hand. Narrowing that rule dropped REX key match from 72.4% to 59.5%, so it stays. Long even streams at those speeds are rare in the analyzed videos, so this zone itself was not compared with Jipper.
+
+**Roll style** does not affect how runs are split, only the direction inside a run. Shown for 4 keys with the right hand as main hand.
 
 | Roll style | Order |
 |---|---|
@@ -169,9 +206,19 @@ Each roll style uses this order, shown for 4 keys `D F J K` with the right hand 
 | Stair (계단) | `J K D F` |
 | Reverse stair (역계단) | `K J F D` |
 
-Tightly packed input (gaps within 12 ms, 35 ms wide at most) counts as a chord and is pressed at once. A chord ignores the roll order and takes the strongest fingers, the same ones every time. An 8-note chord uses all eight fingers from index to pinky, and lower keys start at 9 notes.
+**Chords:** input with gaps within 12 ms, 35 ms wide at most, counts as a chord and is pressed at once. Chords of 2 to 4 notes stay in one hand and hands alternate (`[D F S] [J K L] [D F] [J K]`). Slow chords can stay on the same hand. A 5-note chord stays in one hand with a thumb, and splits into 3 and 2 without one. A 6-note chord is three per hand, an 8-note chord uses eight fingers, and the main thumb joins at 9 notes. An 8-note chord keeps its shape even when it repeats slightly faster than the minimum interval.
 
-Thumb and palm keys (lower keys) are used only in streams where eight fingers would still re-strike the same finger more than about 1.33 times faster than max speed. To never use them, set max keys to 8.
+**Lower keys:** thumb and palm keys only help chords, or streams that eight fingers truly cannot play. To never use them, set max keys to 8.
+
+**How close to Jipper:** compared press by press with his play on the same chart, using his settings (main hand left, Inward, 1120 BPM). Repeat consistency is how often 6 presses with the same gaps come out in their most common key order, with Jipper's own value in parentheses.
+
+| Chart | Presses | Key match | Hand match | Previous version key match | Repeat consistency |
+|---|---|---|---|---|---|
+| First Town Of This Journey, full 4-key | 1,875 | 91.9% | 97.9% | 26.2% | 69.2% (66.4%) |
+| First Town Of This Journey 1.2x, full 2-key | 1,875 | 93.7% | 98.1% | 30.4% | 86.3% (71.3%) |
+| REX, Pure Perfect | 7,040 | 72.4% | 86.5% | 22.7% | 57.4% (34.9%) |
+
+## Key roles and status line
 
 Key roles are inferred from the viewer's array order, because no viewer records which finger plays a key. If they differ from your hands, change them in the key role editor. Foot keys are never used.
 
@@ -214,11 +261,10 @@ On REX a key that is still lit is re-pressed one frame later, so the lit order p
 - If the game closes during an attempt, even through a normal window close, Jipper's key stats may not be restored. This is more likely on Jipper 1.4.9, whose own thread saves them.
 - The AdofaiTweaks key viewer does not show real key presses during autoplay, and cannot show key codes of 4096 or above.
 - Jipper 1.4.9 reads keys on its own thread, so physically holding the same key, or the thread missing a press, can subtract one count too many.
-- Sections that keep speeding up with no pause can rarely go over max speed: dozens of times in a million mixed presses. The status line shows the count.
+- The fingering values were fitted to two charts from Jipper's videos. Charts of a different character may match less.
+- Very fast sections can go over max speed. The status line shows the count.
 - 2-key max speed is measured with two fingers and applied to all of them. It is not lowered for a slower ring finger or pinky.
 - Opening a level right after starting the game can miss JALib-based viewers that have not loaded yet, for that attempt only. They are looked up again on the next attempt.
-- 16-key stair can take a few seconds to settle into table order at 100 or more presses per second.
-- With one hand only or an index finger turned off in the key roles, slow tiles 0.4 s or more apart can all land on one key.
 
 ## Build
 

@@ -6,8 +6,6 @@ namespace AutoFingering.Core
 
     public enum RollStyle { Outward, Inward, Stair, ReverseStair }
 
-    public enum TripletSplit { MainTwoFingers, OffTwoFingers }
-
     public sealed class KeySlot
     {
         public int KeyCode;
@@ -56,7 +54,6 @@ namespace AutoFingering.Core
         public int Base = 2;
         public int MaxKeys = AllKeys;
         public double Floor = 0.130;
-        public TripletSplit TripletSplit = TripletSplit.MainTwoFingers;
     }
 
     public sealed class Solution

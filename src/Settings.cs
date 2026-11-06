@@ -28,7 +28,6 @@ namespace AutoFingering
 
         // 화면에는 2키 최대 속도로 보여 주지만 저장은 이 값으로 한다. 1.0의 Settings.xml을 그대로 읽기 위함이다.
         public double FloorMs = 130;
-        public TripletSplit Split = TripletSplit.MainTwoFingers;
         public List<RoleOverride> RoleOverrides = new List<RoleOverride>();
 
         public override void Save(UnityModManager.ModEntry modEntry)
@@ -56,7 +55,6 @@ namespace AutoFingering
                 Base = Base,
                 MaxKeys = MaxKeys,
                 Floor = ClampedFloorMs() / 1000.0,
-                TripletSplit = Split,
             };
         }
 

@@ -1,51 +1,66 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 
 namespace AutoFingering.Core
 {
+    // 세계 1위 지퍼의 키뷰어를 프레임 단위로 읽어 얻은 타법을 따른다. 사람은 음마다 손가락을 고르지 않고 "손 단위 묶음"으로 친다.
+    // 왼손 묶음과 오른손 묶음이 번갈아 오고, 묶음 안에서는 스타일 방향으로 굴리며, 2~5동타는 한 손에 담는다.
+    // 그래서 입력열을 묶음으로 나누는 문제로 푼다. 묶음의 손가락 모양은 길이로 정해지므로 같은 리듬은 같은 모양이 되어 외울 수 있다.
+    //
+    // 비용 값은 지퍼의 플레이(REX 7,040타, First Town 4키기반·2키기반 각 1,875타)와 맞춘 것이다.
+    // 값을 바꾸면 합성 데이터만 보지 말고 실제 맵으로 재현해 동타와 아래 키를 눈으로 확인한다.
     public static class FingeringSolver
     {
-        private const double BurstGap = 0.4;
-        private const double BusyCost = 1000;
-        private const double OnBeatTolerance = 0.02;
-        private const double BurstOffStartCost = 0.001;
-
-        // 긴 틈 뒤 리셋은 부손 시작의 정박 비용(0.1)을 반으로 나눈 값보다 커야 한다. 0.05면 느린 곧은 타일이
-        // 매번 주손 검지로 리셋해 한 키만 켜지고, 150 BPM 근처에서는 교대와 뒤섞인다.
-        private const double BurstReset = 0.06;
-
-        // 게임의 entryTime은 누적 합이라 정확한 배수에서도 오차가 난다. 경계값에서 tier가 흔들리지 않게 비교에 여유를 둔다.
-        private const double TimeEpsilon = 1e-9;
-
-        // 리셋 부채: 리셋을 거듭한 경로는 다음 리셋이 비싸진다. 없으면 롱노트 하나로 표 순서를 잃은 경로가
-        // 표 순서로 돌아오지 못한 채 연타 끝까지 리셋을 반복한다. 자연 진행으로 천천히 갚고 긴 틈에서 0이 된다.
-        // 대가: 쉼 없이 빨라지는 구간에서는 리셋이 같은 손가락 비용보다 비싸져 위반이 드물게 생긴다.
-        // 위반 한 번보다 스타일 순서를 끝까지 잃는 쪽이 더 나빠 이쪽을 택했다.
-        private const double DebtPerReset = 1;
-        private const double DebtRepayPerStep = 0.1;
-
-        // 이 간격 안에서 이어지고 전체 폭도 이 안이면 사람은 한 번에 누른다(동타).
-        // 폭이 넘으면 묶음 전체가 빠른 연타다. 연타를 잘라 동타로 보면 안 된다.
         private const double ChordGap = 0.012;
         private const double ChordSpan = 0.035;
 
-        // Floor는 손가락을 더 쓰는 기준이고, 이 비율까지는 같은 손가락으로 실제로 칠 수 있다.
-        // 동타를 다시 치는 간격과 엄지·손바닥 키를 꺼내는 기준, 위반 집계가 모두 이 값을 쓴다.
+        // 게임의 entryTime은 누적 합이라 정확히 100 ms인 간격도 1e-8초쯤 흔들린다. 경계 비교에 여유가 없으면
+        // 같은 리듬인데 음마다 판정이 갈려 모양이 뒤죽박죽이 된다. 시각 비교는 전부 이 여유를 둔다.
+        private const double TimeEpsilon = 1e-6;
+        private const int BothHands = 2;
+        private const int BigChord = 6;
+
+        // Floor의 이 비율 아래로는 같은 손가락으로 실제로 칠 수 없다.
         private const double HardFloorRatio = 0.75;
 
-        // 네 손가락으로 칠 수 있는데 아래 키를 쓰는 경로를 막는다. 같은 손가락 비용의 최댓값(약 62)보다 작으면 뚫린다.
-        private const double NeedlessExtraKeyCost = 70;
+        private const double GridTolerance = 0.002;
+        private const double GridEpsilon = 0.003;
+        private const int GridMisses = 4;
 
-        // 동타에서 아래 키 하나의 값. 약지·새끼를 빼고 아래 키를 넣는 조합을 막을 만큼 크고,
-        // 손가락 수를 넘는 동타에서 꼭 필요한 아래 키를 막지 않을 만큼 작다.
-        private const double ChordExtraKeyCost = 1;
-        private const double ChordOffHandTieBreak = 0.001;
+        private const double BelowHard = 30;
+        private const double OverlapHold = BelowHard * 3;
+        private const double BelowFloor = 2;
 
-        // 두 간격이 이 비율 안이면 같은 간격으로 본다.
-        private const double SameGapRatio = 0.1;
+        // 동타 모양은 최소 간격 근처에서도 유지한다. 돌려 쓰면 묶음마다 모양이 바뀌어 외울 수 없다.
+        private const double ChordBelowFloor = 0.2;
+        private const double Restrike = 1.5;
 
-        // Finger 열거형 순서: Index, Middle, Ring, Pinky, Thumb1, Thumb2, Palm1, Palm2
-        private static readonly double[] WeakFingerCost = { 0, 0.05, 0.2, 0.3, 0.25, 0.3, 0.6, 0.7 };
+        // 기반은 같은 손가락을 얼마나 여유 있게 다시 치는지다. 지퍼의 4키기반은 약 265 ms, 2키기반은 약 147 ms까지 내려간다.
+        private const double Comfort4 = 2.4;
+        private const double Comfort2 = 1.7;
+        private const double FastComfort = 1.0;
+        private const double Chain4 = 2.25;
+        private const double Chain2 = 1.1;
+        private const double Rung4 = 1.0;
+        private const double Rung2 = 0.67;
+
+        private const double HandRepeat = 0.6;
+        private const double SlowRepeat4 = 0.3;
+        private const double EndOffMain = 1.5;
+        private const double StartOffMain = 0.6;
+        private const double Boundary = 1;
+        private const double MaxInnerGap = 0.1;
+        private const double WindowChange = 0.6;
+        private const double WindowCap = 0.4;
+        private const double GraceGap = 0.03;
+        private const double ParityMiss = 2;
+        private const double HalfMin = 0.55;
+        private const double ModeSwitch = 4;
+        private const double HalfRent = 1;
+
+        // ponytail: 상태를 묶음당 이만큼만 남긴다. 실제 맵에서는 결과가 달라지지 않았고, 극단적 맵에서 메모리와 시간을 막는다.
+        private const int BeamWidth = 96;
 
         public static Solution Solve(
             PressEvent[] events,
@@ -54,328 +69,52 @@ namespace AutoFingering.Core
             CancellationToken token = default(CancellationToken))
         {
             if (events == null) throw new ArgumentNullException(nameof(events));
+            if (layout == null) throw new ArgumentNullException(nameof(layout));
+            if (options == null) throw new ArgumentNullException(nameof(options));
+            // 결과가 슬롯 번호를 byte로 저장하고 255는 NoSlot으로 예약돼 있다.
+            if (layout.Slots.Length >= Solution.NoSlot)
+            {
+                throw new ArgumentException("슬롯이 너무 많음: " + layout.Slots.Length, nameof(layout));
+            }
 
-            Tier[] tiers = StyleCycle.BuildTiers(layout, options);
             var result = new Solution { Slot = new byte[events.Length] };
             if (events.Length == 0) return result;
-            if (tiers.Length == 0)
+
+            var hands = new HandSet(layout, options);
+            if (hands.Total == 0)
             {
                 // 활성 키가 하나도 없으면 풀 문제가 없다. 호출자는 NoSlot을 "불 안 켬"으로 처리한다.
                 for (int i = 0; i < result.Slot.Length; i++) result.Slot[i] = Solution.NoSlot;
                 return result;
             }
 
-            StateTable states = StateTable.Build(tiers, layout);
-            int[] chordSize = FindChords(events);
-            int finalState;
-            byte[] back = RunViterbi(events, chordSize, layout.Slots.Length, tiers, states, options, token, out finalState);
-            Backtrack(back, finalState, states, result.Slot);
+            var search = new RunSearch(events, hands, options, token);
+            search.Solve(result.Slot);
+            RepairHolds(events, result.Slot, hands);
             result.FloorViolations = CountViolations(events, result.Slot, layout.Slots.Length, options.Floor * HardFloorRatio);
             return result;
         }
 
-        private static byte[] RunViterbi(
-            PressEvent[] events,
-            int[] chordSize,
-            int slots,
-            Tier[] tiers,
-            StateTable states,
-            SolverOptions options,
-            CancellationToken token,
-            out int finalState)
+        // 앞 홀드가 잡고 있는 손가락에 새 입력이 오면 같은 손의 빈 손가락으로 옮긴다. 묶음 탐색은 직전 두 묶음까지만 보기 때문이다.
+        private static void RepairHolds(PressEvent[] events, byte[] slots, HandSet hands)
         {
-            int n = events.Length;
-            int count = states.Count;
-            double floor = options.Floor;
-            double comfort = floor * (options.Base == 4 ? 2 : 1);
-            double hardFloor = floor * HardFloorRatio;
-            bool[] extraKeysNeeded = FindExtraKeyNeed(events, chordSize, FingerKeyCount(tiers), hardFloor);
-            double[,] excess = BuildExcessTable(tiers);
+            var heldUntil = new double[256];
+            for (int i = 0; i < heldUntil.Length; i++) heldUntil[i] = double.NegativeInfinity;
 
-            // ponytail: 역추적표가 N*S 바이트다(100만 이벤트, 16키면 약 61MB). 더 긴 레벨이 필요하면 체크포인트 역추적으로 바꾼다.
-            var back = new byte[checked(n * count)];
-            var cost = new double[count];
-            var nextCost = new double[count];
-            // 시간은 누적되므로 float면 긴 레벨에서 ms 단위 오차가 Floor 판정에 섞인다. 그래서 double로 둔다.
-            var busy = new double[count * slots];
-            var nextBusy = new double[count * slots];
-            for (int i = 0; i < busy.Length; i++) busy[i] = double.NegativeInfinity;
-
-            var debt = new double[count];
-            var nextDebt = new double[count];
-            int best = 0;
-            for (int i = 0; i < n; i++)
+            for (int e = 0; e < events.Length; e++)
             {
-                if ((i & 0xFFF) == 0) token.ThrowIfCancellationRequested();
-
-                PressEvent press = events[i];
-                bool first = i == 0;
-                double gap = first ? double.PositiveInfinity : press.Time - events[i - 1].Time;
-                int chord = chordSize[i];
-
-                // 동타의 첫 음은 손을 새로 놓는 순간이다. 긴 틈처럼 시작 위치로 돌아가야 매번 같은 손가락 묶음을 잡는다.
-                bool chordStart = chord > 0 && (first || chordSize[i - 1] == 0 || gap > ChordGap + TimeEpsilon);
-                bool burst = chordStart || gap >= BurstGap - TimeEpsilon;
-                double reset = first ? 0 : burst ? BurstReset : ResetCost(gap, floor);
-                bool onBeat = IsOnBeat(press.Beat);
-                bool ternary = HasTernaryNeighbor(events, i) && !RepeatsEveryTwoNotes(events, i);
-                bool binary = !ternary && !RepeatsEveryThreeNotes(events, i);
-                // 동타는 손가락을 돌려 쓸 수 없으니 같은 손가락으로 다시 친다. 기반은 리듬 개념이라 동타에는 적용하지 않는다.
-                double eventFloor = chord > 0 ? hardFloor : floor;
-                double eventComfort = chord > 0 ? hardFloor : comfort;
-                int needed = NeededTier(events, i, tiers, eventComfort);
-                double occupiedUntil = press.ReleaseTime >= 0 ? press.ReleaseTime : press.Time;
-
-                double nextBestCost = double.PositiveInfinity;
-                int nextBest = 0;
-                for (int s = 0; s < count; s++)
+                double time = events[e].Time;
+                byte slot = slots[e];
+                if (heldUntil[slot] > time)
                 {
-                    int slot = states.Slot[s];
-                    int natural = first ? s : states.Previous[s];
-                    int pred = natural;
-
-                    // 같은 손가락 비용까지 합쳐 비교해야 표 순서로 돌아오는 경로가 살아남는다.
-                    // 비용 없이 비교하면 잠시 2.0 넘게 뒤처진 경로가 다음 이벤트에 덮어써진다.
-                    // 동타의 첫 음에서는 앞 묶음에서 이어 가는 경로에 이득을 주지 않는다. 이득이 있으면 값이 같은 두 조합을 번갈아 고른다.
-                    double total = cost[pred]
-                        + (chordStart ? reset : 0)
-                        + SameFingerCost(press.Time, busy[pred * slots + slot], eventFloor, hardFloor, eventComfort);
-                    if (!first)
-                    {
-                        double viaReset = cost[best]
-                            + (chordStart ? reset : reset * (1 + debt[best]))
-                            + SameFingerCost(press.Time, busy[best * slots + slot], eventFloor, hardFloor, eventComfort);
-                        if (viaReset < total || (viaReset == total && best < pred))
-                        {
-                            pred = best;
-                            total = viaReset;
-                        }
-                    }
-
-                    if (!extraKeysNeeded[i] && states.UsesExtraKeys[s]) total += NeedlessExtraKeyCost;
-                    total += excess[states.TierIndex[s], needed];
-                    total += states.WeakCost[s];
-
-                    // 동타 안의 음은 한 번에 누르므로 시작 위치, 박자, 리듬 단위는 의미가 없다. 어떤 손가락을 쓰는지만 본다.
-                    if (chord > 0)
-                    {
-                        if (states.IsExtraKey[s]) total += ChordExtraKeyCost;
-
-                        // 값이 같은 조합(왼손 약지를 뺄지 오른손 약지를 뺄지)이 묶음마다 바뀌지 않도록 주손 쪽으로 동률을 깬다.
-                        if (states.IsOffHand[s]) total += ChordOffHandTieBreak;
-                    }
-                    else
-                    {
-                        if (burst) total += states.BurstCost[s];
-                        if (onBeat) total += states.BeatCost[s];
-                        if (ternary) total += states.TernaryMismatch[s];
-                        else if (binary) total += states.BinaryMismatch[s];
-                    }
-
-                    nextDebt[s] = burst
-                        ? 0
-                        : pred != natural
-                            ? debt[pred] + DebtPerReset
-                            : Math.Max(0, debt[pred] - DebtRepayPerStep);
-
-                    nextCost[s] = total;
-                    back[i * count + s] = (byte)pred;
-                    Array.Copy(busy, pred * slots, nextBusy, s * slots, slots);
-                    nextBusy[s * slots + slot] = occupiedUntil;
-
-                    // 동률이면 낮은 상태 번호가 남아 같은 입력은 항상 같은 결과를 낸다.
-                    if (total < nextBestCost)
-                    {
-                        nextBestCost = total;
-                        nextBest = s;
-                    }
+                    int hand = hands.HandOf(slot);
+                    int free = hands.FreeSlot(hand, heldUntil, time);
+                    if (free < 0) free = hands.FreeSlot(1 - hand, heldUntil, time);
+                    if (free >= 0) slot = (byte)free;
+                    slots[e] = slot;
                 }
 
-                double[] swapCost = cost;
-                cost = nextCost;
-                nextCost = swapCost;
-                double[] swapBusy = busy;
-                busy = nextBusy;
-                nextBusy = swapBusy;
-                double[] swapDebt = debt;
-                debt = nextDebt;
-                nextDebt = swapDebt;
-                best = nextBest;
-            }
-
-            finalState = best;
-            return back;
-        }
-
-        // 끊김 없이 이어지고 간격이 짧을수록 가파른 곡선이어야 한다. 경계에 턱이 있으면 2ms 모자란 연타에서
-        // 일부러 같은 키를 겹쳐 쳐서 타이밍을 미는 경로가 오히려 싸져 말이 안 되는 타법이 나온다.
-        private static double SameFingerCost(double time, double occupiedUntil, double floor, double hardFloor, double comfort)
-        {
-            if (time < occupiedUntil) return BusyCost;
-
-            double dt = time - occupiedUntil;
-            if (dt < hardFloor - TimeEpsilon) return 2.25 + 80 * (hardFloor - dt) / floor;
-            if (dt < floor - TimeEpsilon) return 1 + 5 * (floor - dt) / floor;
-            if (dt < comfort - TimeEpsilon) return 0.5 * (comfort - dt) / comfort;
-            return 0;
-        }
-
-        private static double ResetCost(double gap, double floor)
-        {
-            return gap >= floor - TimeEpsilon ? 0.6 : 2.0;
-        }
-
-        // 이어지는 짧은 간격의 묶음을 찾아 이벤트별 묶음 크기를 돌려준다. 동타가 아니면 0이다.
-        private static int[] FindChords(PressEvent[] events)
-        {
-            var sizes = new int[events.Length];
-            int start = 0;
-            for (int i = 1; i <= events.Length; i++)
-            {
-                if (i < events.Length && events[i].Time - events[i - 1].Time <= ChordGap + TimeEpsilon) continue;
-
-                int count = i - start;
-                if (count >= 2 && events[i - 1].Time - events[start].Time <= ChordSpan + TimeEpsilon)
-                {
-                    for (int j = start; j < i; j++) sizes[j] = count;
-                }
-
-                start = i;
-            }
-
-            return sizes;
-        }
-
-        // 엄지·손바닥 키 없이 쓸 수 있는 가장 큰 tier의 키 수. 없으면 0이다.
-        private static int FingerKeyCount(Tier[] tiers)
-        {
-            int keys = 0;
-            foreach (Tier tier in tiers)
-            {
-                if (!tier.UsesExtraKeys && tier.K > keys) keys = tier.K;
-            }
-
-            return keys;
-        }
-
-        // 동타는 손가락 수를 넘을 때만, 연타는 네 손가락을 다 돌려도 실제로 칠 수 없을 때만 아래 키를 꺼낸다.
-        // 경계에서 앞뒤로 네 손가락 한 바퀴만큼 넓힌다. 그 타에서 바로 끊으면 방금 친 손가락을 곧바로 다시 치게 된다.
-        private static bool[] FindExtraKeyNeed(PressEvent[] events, int[] chordSize, int fingerKeys, double hardFloor)
-        {
-            var need = new bool[events.Length];
-            if (fingerKeys == 0)
-            {
-                for (int i = 0; i < need.Length; i++) need[i] = true;
-                return need;
-            }
-
-            var core = new bool[events.Length];
-            for (int i = 0; i < core.Length; i++)
-            {
-                core[i] = chordSize[i] > 0
-                    ? chordSize[i] > fingerKeys
-                    : i >= fingerKeys && events[i].Time - events[i - fingerKeys].Time < hardFloor - TimeEpsilon;
-            }
-
-            int until = -1;
-            for (int i = 0; i < need.Length; i++)
-            {
-                if (core[i]) until = i + fingerKeys;
-                need[i] = core[i] || (chordSize[i] == 0 && i <= until);
-            }
-
-            until = need.Length;
-            for (int i = need.Length - 1; i >= 0; i--)
-            {
-                if (core[i]) until = i - fingerKeys;
-                need[i] = need[i] || (chordSize[i] == 0 && i >= until);
-            }
-
-            return need;
-        }
-
-        private static bool SameGap(double a, double b)
-        {
-            return Math.Abs(a - b) <= SameGapRatio * Math.Max(a, b);
-        }
-
-        // 갤럽처럼 세 음 단위로 반복하는 리듬은 3키가 정박을 주손 검지에 붙들어 준다. 이때만 3키 벌점을 면제한다.
-        // 고르지 않다는 이유만으로 면제하면 점음표 쌍까지 3키로 가서 정박이 세 손가락을 돈다.
-        // 맨 앞과 맨 뒤 이벤트는 양쪽 간격을 볼 수 없어 벌점을 물리지 않는다.
-        private static bool RepeatsEveryThreeNotes(PressEvent[] events, int i)
-        {
-            if (i == 0 || i + 1 >= events.Length) return true;
-
-            double before = events[i].Time - events[i - 1].Time;
-            double after = events[i + 1].Time - events[i].Time;
-            if (SameGap(before, after) || i + 3 >= events.Length) return false;
-            return SameGap(before, events[i + 3].Time - events[i + 2].Time);
-        }
-
-        // 셔플처럼 두 음 단위로 반복하는 리듬은 박의 1/3 위치에 있어도 4키가 손 짝을 지킨다. 3연음 벌점을 물리면 안 된다.
-        private static bool RepeatsEveryTwoNotes(PressEvent[] events, int i)
-        {
-            if (i == 0 || i + 2 >= events.Length) return false;
-
-            double before = events[i].Time - events[i - 1].Time;
-            double after = events[i + 1].Time - events[i].Time;
-            return !SameGap(before, after) && SameGap(before, events[i + 2].Time - events[i + 1].Time);
-        }
-
-        private static bool IsOnBeat(double beat)
-        {
-            double frac = beat - Math.Floor(beat);
-            return frac <= OnBeatTolerance || frac >= 1 - OnBeatTolerance;
-        }
-
-        // 각도는 3연음을 박의 1/3, 2/3 위치로 드러낸다. 이웃까지 보는 이유는 정박 음표 자신은 위치만으로 구분되지 않아서다.
-        private static bool HasTernaryNeighbor(PressEvent[] events, int i)
-        {
-            if (IsTernaryPosition(events[i].Beat)) return true;
-            if (i > 0 && IsTernaryPosition(events[i - 1].Beat)) return true;
-            return i + 1 < events.Length && IsTernaryPosition(events[i + 1].Beat);
-        }
-
-        private static bool IsTernaryPosition(double beat)
-        {
-            if (IsOnBeat(beat)) return false;
-            double third = beat * 3;
-            return Math.Abs(third - Math.Round(third)) <= OnBeatTolerance * 3;
-        }
-
-        private static int NeededTier(PressEvent[] events, int i, Tier[] tiers, double comfort)
-        {
-            for (int t = 0; t < tiers.Length; t++)
-            {
-                int k = tiers[t].K;
-                if (i - k < 0 || events[i].Time - events[i - k].Time >= comfort - TimeEpsilon) return t;
-            }
-
-            return tiers.Length - 1;
-        }
-
-        private static double[,] BuildExcessTable(Tier[] tiers)
-        {
-            var table = new double[tiers.Length, tiers.Length];
-            for (int have = 0; have < tiers.Length; have++)
-            {
-                for (int need = 0; need < have; need++)
-                {
-                    // Math.Log2는 .NET Framework 4.8에 없다.
-                    table[have, need] = 0.15 * Math.Log((double)tiers[have].K / tiers[need].K, 2);
-                }
-            }
-
-            return table;
-        }
-
-        private static void Backtrack(byte[] back, int finalState, StateTable states, byte[] output)
-        {
-            int state = finalState;
-            for (int i = output.Length - 1; i >= 0; i--)
-            {
-                output[i] = states.Slot[state];
-                state = back[i * states.Count + state];
+                if (events[e].ReleaseTime >= 0) heldUntil[slot] = events[e].ReleaseTime;
             }
         }
 
@@ -394,75 +133,949 @@ namespace AutoFingering.Core
             return violations;
         }
 
-        // 상태별로 미리 계산해 두면 이벤트당 O(S*slots) 루프에서 tier 객체를 건드리지 않는다.
-        private sealed class StateTable
+        // 손 0은 주손, 1은 부손이다. 묶음 탐색은 이 좌표로만 해서 왼손·오른손 주손 설정이 정확히 거울이 된다.
+        private sealed class HandSet
         {
-            public int Count;
-            public byte[] Previous;
-            public byte[] Slot;
-            public int[] TierIndex;
-            public bool[] UsesExtraKeys;
-            public bool[] IsExtraKey;
-            public bool[] IsOffHand;
-            public double[] WeakCost;
-            public double[] BeatCost;
-            public double[] BurstCost;
-            public double[] TernaryMismatch;
-            public double[] BinaryMismatch;
+            private static readonly Finger[] BaseOuterToInner = { Finger.Pinky, Finger.Ring, Finger.Middle, Finger.Index };
+            private static readonly Finger[] ExtraOrder = { Finger.Thumb1, Finger.Thumb2, Finger.Palm1, Finger.Palm2 };
 
-            public static StateTable Build(Tier[] tiers, Layout layout)
+            private static readonly Finger[] ActivationOrder =
             {
-                int count = 0;
-                foreach (Tier tier in tiers) count += tier.K;
+                Finger.Index, Finger.Middle, Finger.Ring, Finger.Pinky,
+                Finger.Thumb1, Finger.Thumb2, Finger.Palm1, Finger.Palm2,
+            };
 
-                var table = new StateTable
+            private readonly int[][] baseKeys = new int[2][];
+            private readonly int[][] extraKeys = new int[2][];
+            private readonly int[][] byPriority = new int[2][];
+            private readonly bool[] inward = new bool[2];
+            private readonly Finger[] fingerOf;
+            private readonly int[] handOf;
+            private readonly Dictionary<int, int[]> shapes = new Dictionary<int, int[]>();
+
+            public readonly int[] Capacity = new int[2];
+            public readonly int[] BaseCount = new int[2];
+            public readonly int Total;
+
+            public HandSet(Layout layout, SolverOptions options)
+            {
+                Hand mainHand = options.MainHand;
+                Hand offHand = mainHand == Hand.Left ? Hand.Right : Hand.Left;
+                int[,] slotOf = ResolveSlots(layout);
+
+                fingerOf = new Finger[layout.Slots.Length];
+                handOf = new int[layout.Slots.Length];
+                for (int i = 0; i < handOf.Length; i++)
                 {
-                    Count = count,
-                    Previous = new byte[count],
-                    Slot = new byte[count],
-                    TierIndex = new int[count],
-                    UsesExtraKeys = new bool[count],
-                    IsExtraKey = new bool[count],
-                    IsOffHand = new bool[count],
-                    WeakCost = new double[count],
-                    BeatCost = new double[count],
-                    BurstCost = new double[count],
-                    TernaryMismatch = new double[count],
-                    BinaryMismatch = new double[count],
-                };
-
-                int start = 0;
-                for (int t = 0; t < tiers.Length; t++)
-                {
-                    Tier tier = tiers[t];
-                    for (int phase = 0; phase < tier.K; phase++)
-                    {
-                        int s = start + phase;
-                        byte slot = tier.Cycle[phase];
-                        bool mainStart = phase == 0;
-                        bool offStart = phase == tier.OffStart;
-
-                        table.Previous[s] = (byte)(start + (phase + tier.K - 1) % tier.K);
-                        table.Slot[s] = slot;
-                        table.TierIndex[s] = t;
-                        table.UsesExtraKeys[s] = tier.UsesExtraKeys;
-                        table.IsExtraKey[s] = layout.Slots[slot].Finger > Finger.Pinky;
-                        table.IsOffHand[s] = phase >= tier.OffStart;
-                        table.WeakCost[s] = WeakFingerCost[(int)layout.Slots[slot].Finger];
-                        table.BeatCost[s] = mainStart ? 0 : offStart ? 0.1 : 0.3;
-                        // 정박만 있는 연타는 주손 시작과 부손 시작의 합계가 정확히 같다. 주손에서 시작하도록 동률만 깬다.
-                        table.BurstCost[s] = mainStart ? 0 : offStart ? BurstOffStartCost : 0.3;
-
-                        // 곧은 타일 연타에서 3키가 뽑히면 손이 짝을 잃고, 3연음에서 4키가 뽑히면 정박이 사이클 위를 떠돈다.
-                        // 정박 비용은 곧은 연타에서 오히려 3키를 편들어서 고칠 수 없다. 그래서 리듬 불일치를 따로 매긴다.
-                        table.BinaryMismatch[s] = tier.K == 3 ? 0.25 : 0;
-                        table.TernaryMismatch[s] = tier.K > 2 && tier.K % 3 != 0 ? 0.25 : 0;
-                    }
-
-                    start += tier.K;
+                    fingerOf[i] = layout.Slots[i].Finger;
+                    handOf[i] = layout.Slots[i].Hand == mainHand ? 0 : 1;
                 }
 
-                return table;
+                var allowed = new bool[2, 8];
+                int count = 0;
+                foreach (Finger finger in ActivationOrder)
+                {
+                    // 키 수를 제한하면 힘 있는 손가락부터 남기고, 같은 손가락은 주손을 먼저 남긴다.
+                    foreach (Hand hand in new[] { mainHand, offHand })
+                    {
+                        if (slotOf[(int)hand, (int)finger] < 0 || count >= options.MaxKeys) continue;
+                        allowed[(int)hand, (int)finger] = true;
+                        count++;
+                    }
+                }
+
+                Total = count;
+                Hand[] real = { mainHand, offHand };
+                for (int h = 0; h < 2; h++)
+                {
+                    int r = (int)real[h];
+                    baseKeys[h] = Pick(BaseOuterToInner, r, slotOf, allowed);
+                    extraKeys[h] = Pick(ExtraOrder, r, slotOf, allowed);
+                    byPriority[h] = Pick(ActivationOrder, r, slotOf, allowed);
+                    BaseCount[h] = baseKeys[h].Length;
+                    Capacity[h] = byPriority[h].Length;
+                    inward[h] = options.Style == RollStyle.Inward
+                        || (options.Style == RollStyle.Stair && real[h] == Hand.Left)
+                        || (options.Style == RollStyle.ReverseStair && real[h] == Hand.Right);
+                }
+            }
+
+            public int HandOf(int slot)
+            {
+                return handOf[slot];
+            }
+
+            public bool RollsInward(int hand)
+            {
+                return inward[hand];
+            }
+
+            public double FingerCost(int slot)
+            {
+                switch (fingerOf[slot])
+                {
+                    case Finger.Index: return 0;
+                    case Finger.Middle: return 0.6;
+                    case Finger.Ring: return 1;
+                    case Finger.Pinky: return 1.2;
+                    default: return 3;
+                }
+            }
+
+            public int FreeSlot(int hand, double[] heldUntil, double time)
+            {
+                foreach (int slot in byPriority[hand])
+                {
+                    if (heldUntil[slot] <= time) return slot;
+                }
+
+                return -1;
+            }
+
+            public bool Fits(int hand, int total, bool hasChord, bool extraNeeded)
+            {
+                if (total <= BaseCount[hand]) return true;
+                // 엄지와 손바닥 키만 있는 손은 그 키들이 곧 기본 손가락이다.
+                return (hasChord || extraNeeded || BaseCount[hand] == 0) && total <= Capacity[hand];
+            }
+
+            public bool HasThumb(int hand)
+            {
+                return extraKeys[hand].Length > 0 && fingerOf[extraKeys[hand][0]] == Finger.Thumb1;
+            }
+
+            // 묶음의 손가락을 바깥에서 안쪽 순서로 돌려준다. 탐색은 항상 이 순서로 비용을 보고, 스타일은 마지막에 적용한다.
+            public int[] Shape(int hand, int total, bool chordRun)
+            {
+                int key = hand * 1000 + total * 2 + (chordRun ? 1 : 0);
+                int[] shape;
+                if (!shapes.TryGetValue(key, out shape))
+                {
+                    shape = BuildShape(hand, total, chordRun);
+                    shapes[key] = shape;
+                }
+
+                return shape;
+            }
+
+            private int[] BuildShape(int hand, int total, bool chordRun)
+            {
+                int[] keys = baseKeys[hand];
+                int[] extras = extraKeys[hand];
+                int baseCount = keys.Length;
+                if (total <= baseCount)
+                {
+                    var inner = new int[total];
+                    // 동타가 섞인 네 손가락 묶음은 새끼 대신 엄지가 돕는다: [ds][Lf]
+                    if (total == 4 && chordRun && HasThumb(hand))
+                    {
+                        inner[0] = keys[baseCount - 3];
+                        inner[1] = keys[baseCount - 2];
+                        inner[2] = extras[0];
+                        inner[3] = keys[baseCount - 1];
+                        return inner;
+                    }
+
+                    Array.Copy(keys, baseCount - total, inner, 0, total);
+                    return inner;
+                }
+
+                // 네 손가락을 넘으면 엄지, 손바닥 순서로 넓힌다. 엄지는 검지 바로 바깥, 손바닥은 새끼 바깥이다.
+                int extraCount = Math.Min(total - baseCount, extras.Length);
+                var palms = new List<int>();
+                var thumbs = new List<int>();
+                for (int i = 0; i < extraCount; i++)
+                {
+                    bool thumb = fingerOf[extras[i]] == Finger.Thumb1 || fingerOf[extras[i]] == Finger.Thumb2;
+                    (thumb ? thumbs : palms).Add(extras[i]);
+                }
+
+                var shape = new List<int>(total);
+                for (int i = palms.Count - 1; i >= 0; i--) shape.Add(palms[i]);
+                for (int i = 0; i < baseCount - 1; i++) shape.Add(keys[i]);
+                for (int i = thumbs.Count - 1; i >= 0; i--) shape.Add(thumbs[i]);
+                if (baseCount > 0) shape.Add(keys[baseCount - 1]);
+                return shape.ToArray();
+            }
+
+            private static int[] Pick(Finger[] order, int realHand, int[,] slotOf, bool[,] allowed)
+            {
+                var picked = new List<int>(order.Length);
+                foreach (Finger finger in order)
+                {
+                    if (allowed[realHand, (int)finger]) picked.Add(slotOf[realHand, (int)finger]);
+                }
+
+                return picked.ToArray();
+            }
+
+            // 역할 수정 중에는 같은 역할이 겹칠 수 있다. 앞 슬롯만 쓴다.
+            private static int[,] ResolveSlots(Layout layout)
+            {
+                var slotOf = new int[2, 8];
+                for (int hand = 0; hand < 2; hand++)
+                {
+                    for (int finger = 0; finger < 8; finger++) slotOf[hand, finger] = -1;
+                }
+
+                for (int i = 0; i < layout.Slots.Length; i++)
+                {
+                    KeySlot slot = layout.Slots[i];
+                    if (!slot.Enabled || slotOf[(int)slot.Hand, (int)slot.Finger] >= 0) continue;
+                    slotOf[(int)slot.Hand, (int)slot.Finger] = i;
+                }
+
+                return slotOf;
+            }
+        }
+
+        // 한 묶음이 어떤 손가락을 언제까지 쓰는지. 큰 동타는 양손 항목이 함께 들어 있어 Owner로 가른다.
+        private sealed class RunView
+        {
+            public int Count;
+            public readonly int[] Slot = new int[16];
+            public readonly int[] Owner = new int[16];
+            public readonly double[] When = new double[16];
+            public readonly double[] Busy = new double[16];
+            public readonly bool[] InChord = new bool[16];
+
+            public void Add(int slot, int owner, double when, double busy, bool inChord)
+            {
+                for (int i = 0; i < Count; i++)
+                {
+                    if (Slot[i] != slot) continue;
+                    Owner[i] = owner;
+                    When[i] = when;
+                    Busy[i] = busy;
+                    InChord[i] = inChord;
+                    return;
+                }
+
+                if (Count == Slot.Length) return;
+                Slot[Count] = slot;
+                Owner[Count] = owner;
+                When[Count] = when;
+                Busy[Count] = busy;
+                InChord[Count] = inChord;
+                Count++;
+            }
+
+            public bool HasOwner(int owner)
+            {
+                for (int i = 0; i < Count; i++)
+                {
+                    if (Owner[i] == owner) return true;
+                }
+
+                return false;
+            }
+        }
+
+        private struct Candidate
+        {
+            public int Length;
+            public int Hand;
+            public double Own;
+            public double MissWhole;
+            public double MissHalf;
+            public RunView View;
+        }
+
+        // 슬롯은 동시에 누르는 입력 묶음이다. 슬롯 열을 손 묶음으로 나누는 동적 계획법이다.
+        // 상태는 (이번 손, 이번 슬롯 수, 앞 손, 앞 슬롯 수, 박동 창 모드)뿐이라 이벤트 수에 선형이다.
+        private sealed class RunSearch
+        {
+            private const int HandStates = 4;
+            private const int LengthStates = 9;
+            private const int PairStates = HandStates * LengthStates;
+            private const int StateCount = PairStates * PairStates * 2;
+            private const int RingSize = 32;
+
+            private readonly PressEvent[] events;
+            private readonly HandSet hands;
+            private readonly CancellationToken token;
+            private readonly double floor;
+            private readonly double hard;
+            private readonly double comfort;
+            private readonly double comfortFast;
+
+            private readonly int n;
+            private readonly int[] slotStart;
+            private readonly int[] size;
+            private readonly double[] onset;
+            private readonly double[] busyUntil;
+            private readonly bool[] isBig;
+            private readonly bool[] chainStart;
+            private readonly bool[] extraNeeded;
+            private readonly double[] origin;
+            private readonly double[] pulse;
+            private readonly bool base4;
+            private readonly int maxRun;
+
+            private readonly RunView[,,] views;
+            private readonly Candidate[] candidates;
+            private readonly int[] winner;
+
+            public RunSearch(PressEvent[] events, HandSet hands, SolverOptions options, CancellationToken token)
+            {
+                this.events = events;
+                this.hands = hands;
+                this.token = token;
+                floor = options.Floor;
+                hard = floor * HardFloorRatio;
+                base4 = options.Base >= 4;
+                comfort = floor * (base4 ? Comfort4 : Comfort2);
+                comfortFast = Math.Min(comfort, floor * FastComfort);
+
+                var starts = new List<int>();
+                var sizes = new List<int>();
+                FindSlots(starts, sizes);
+                n = starts.Count;
+                slotStart = new int[n + 1];
+                size = new int[n];
+                onset = new double[n];
+                busyUntil = new double[n];
+                for (int k = 0; k < n; k++)
+                {
+                    slotStart[k] = starts[k];
+                    size[k] = sizes[k];
+                    onset[k] = events[starts[k]].Time;
+                    double busy = onset[k];
+                    for (int e = starts[k]; e < starts[k] + sizes[k]; e++) busy = Math.Max(busy, events[e].ReleaseTime);
+                    busyUntil[k] = busy;
+                }
+
+                slotStart[n] = events.Length;
+
+                double chainGap = floor * (base4 ? Chain4 : Chain2);
+                isBig = new bool[n];
+                for (int k = 0; k < n; k++)
+                {
+                    isBig[k] = size[k] >= BigChord || !(hands.Fits(0, size[k], size[k] > 1, false) || hands.Fits(1, size[k], size[k] > 1, false));
+                }
+
+                chainStart = new bool[n];
+                if (n > 0) chainStart[0] = true;
+                for (int k = 1; k < n; k++)
+                {
+                    chainStart[k] = onset[k] - onset[k - 1] >= chainGap - TimeEpsilon || isBig[k] || isBig[k - 1];
+                }
+
+                // 여덟 손가락을 다 돌려도 실제로 못 치는 연타에서만 엄지와 손바닥을 연타에 쓴다.
+                int baseKeys = hands.BaseCount[0] + hands.BaseCount[1];
+                extraNeeded = new bool[n];
+                for (int k = 0; k < n; k++)
+                {
+                    extraNeeded[k] = baseKeys > 0 && k + baseKeys < n && onset[k + baseKeys] - onset[k] < hard - TimeEpsilon;
+                }
+
+                origin = new double[n];
+                pulse = new double[n];
+                FindGridSections(floor * (base4 ? Rung4 : Rung2), chainGap);
+
+                maxRun = Math.Min(LengthStates - 1, Math.Max(4, Math.Max(hands.Capacity[0], hands.Capacity[1])));
+                views = new RunView[RingSize, 3, LengthStates];
+                candidates = new Candidate[2 * maxRun + 1];
+                winner = new int[n + 1];
+            }
+
+            public void Solve(byte[] output)
+            {
+                var layerCost = new double[LengthStates][];
+                var layerPrev = new ushort[LengthStates][];
+                var layerActive = new int[LengthStates][];
+                var layerCount = new int[LengthStates];
+                for (int i = 0; i < LengthStates; i++)
+                {
+                    layerCost[i] = new double[StateCount];
+                    layerPrev[i] = new ushort[StateCount];
+                    layerActive[i] = new int[StateCount];
+                    for (int s = 0; s < StateCount; s++) layerCost[i][s] = double.PositiveInfinity;
+                }
+
+                var backIds = new ushort[n + 1][];
+                var backPrev = new ushort[n + 1][];
+                int start = Encode(-1, 0, -1, 0, 0);
+                layerCost[0][start] = 0;
+                layerActive[0][0] = start;
+                layerCount[0] = 1;
+
+                var keep = new int[StateCount];
+                for (int i = 0; i < n; i++)
+                {
+                    if ((i & 0xFFF) == 0) token.ThrowIfCancellationRequested();
+
+                    int layer = i % LengthStates;
+                    double[] cost = layerCost[layer];
+                    int[] active = layerActive[layer];
+                    int count = Trim(cost, active, layerCount[layer], keep);
+
+                    backIds[i] = new ushort[count];
+                    backPrev[i] = new ushort[count];
+                    for (int a = 0; a < count; a++)
+                    {
+                        backIds[i][a] = (ushort)active[a];
+                        backPrev[i][a] = layerPrev[layer][active[a]];
+                    }
+
+                    int candidateCount = BuildCandidates(i);
+                    bool halfAllowed = pulse[i] / 2 >= floor * HalfMin - TimeEpsilon;
+                    for (int a = 0; a < count; a++)
+                    {
+                        int state = active[a];
+                        Expand(i, state, cost[state], candidateCount, halfAllowed, layerCost, layerPrev, layerActive, layerCount);
+                    }
+
+                    for (int a = 0; a < layerCount[layer]; a++) cost[active[a]] = double.PositiveInfinity;
+                    layerCount[layer] = 0;
+                }
+
+                int finalLayer = n % LengthStates;
+                int best = -1;
+                double bestCost = double.PositiveInfinity;
+                for (int s = 0; s < StateCount; s++)
+                {
+                    if (layerCost[finalLayer][s] < bestCost)
+                    {
+                        bestCost = layerCost[finalLayer][s];
+                        best = s;
+                    }
+                }
+
+                Backtrack(best, layerPrev[finalLayer][best], backIds, backPrev, output);
+            }
+
+            private void Backtrack(int finalState, ushort finalPrev, ushort[][] backIds, ushort[][] backPrev, byte[] output)
+            {
+                int state = finalState;
+                int prev = finalPrev;
+                int i = n;
+                while (i > 0)
+                {
+                    int hand = HandOfState(state);
+                    int length = LengthOfState(state);
+                    int runStart = i - length;
+                    Assign(runStart, length, hand, output);
+
+                    i = runStart;
+                    state = prev;
+                    if (i == 0) break;
+                    prev = -1;
+                    ushort[] ids = backIds[i];
+                    for (int a = 0; a < ids.Length; a++)
+                    {
+                        if (ids[a] == state)
+                        {
+                            prev = backPrev[i][a];
+                            break;
+                        }
+                    }
+                }
+            }
+
+            private void Assign(int start, int length, int hand, byte[] output)
+            {
+                int first = slotStart[start];
+                int end = slotStart[start + length];
+                if (hand == BothHands)
+                {
+                    int[] fingers = BigChordFingers(start);
+                    for (int e = first; e < end; e++) output[e] = (byte)fingers[(e - first) % fingers.Length];
+                    return;
+                }
+
+                int total = end - first;
+                bool hasChord = RunHasChord(start, length);
+                int[] shape = hands.Shape(hand, total, length > 1 && hasChord);
+                bool grace = length == 2 && !hasChord && onset[start + 1] - onset[start] < GraceGap - TimeEpsilon;
+                for (int k = 0; k < total; k++)
+                {
+                    int index = hands.RollsInward(hand) ? k : total - 1 - k;
+                    output[first + k] = (byte)shape[index % shape.Length];
+                }
+
+                // 거의 동타인 두 음은 스타일과 상관없이 검지가 박을 잡고 옆 손가락이 뒤따른다.
+                if (grace && hands.FingerCost(output[first]) > hands.FingerCost(output[first + 1]))
+                {
+                    byte swap = output[first];
+                    output[first] = output[first + 1];
+                    output[first + 1] = swap;
+                }
+            }
+
+            private void Expand(
+                int i,
+                int state,
+                double baseCost,
+                int candidateCount,
+                bool halfAllowed,
+                double[][] layerCost,
+                ushort[][] layerPrev,
+                int[][] layerActive,
+                int[] layerCount)
+            {
+                int h1 = HandOfState(state);
+                int a = LengthOfState(state);
+                int h2 = PrevHandOfState(state);
+                int b = PrevLengthOfState(state);
+                int previousMode = state & 1;
+
+                for (int c = 0; c < candidateCount; c++)
+                {
+                    int length = candidates[c].Length;
+                    int hand = candidates[c].Hand;
+                    double shared = baseCost + candidates[c].Own;
+                    if (h1 >= 0 && i + length < n)
+                    {
+                        double width = onset[i + length] - onset[i];
+                        double widthBefore = onset[i] - onset[i - a];
+                        // 다중탭은 시각이 같은 입력이 이어져 폭이 둘 다 0일 수 있다. 0으로 나누면 NaN이 되어 경로가 통째로 사라진다.
+                        double wider = Math.Max(width, widthBefore);
+                        if (wider > 0 && width < WindowCap - TimeEpsilon && widthBefore < WindowCap - TimeEpsilon)
+                        {
+                            shared += WindowChange * Math.Abs(width - widthBefore) / wider;
+                        }
+                    }
+
+                    if (hand == h1 && hand != BothHands)
+                    {
+                        shared += !chainStart[i] ? HandRepeat : base4 ? SlowRepeat4 : 0;
+                    }
+
+                    int target = (i + length) % LengthStates;
+                    for (int mode = 0; mode < (halfAllowed ? 2 : 1); mode++)
+                    {
+                        double total = shared
+                            + (mode == 0 ? candidates[c].MissWhole : candidates[c].MissHalf)
+                            + (mode != previousMode ? ModeSwitch : 0);
+                        if (h1 >= 0)
+                        {
+                            double soft = mode == 1 ? comfortFast : comfort;
+                            if (hand == BothHands)
+                            {
+                                total += RestrikeForHand(i, candidates[c].View, 0, a, h1, b, h2, soft);
+                                total += RestrikeForHand(i, candidates[c].View, 1, a, h1, b, h2, soft);
+                            }
+                            else
+                            {
+                                total += RestrikeForHand(i, candidates[c].View, hand, a, h1, b, h2, soft);
+                            }
+                        }
+
+                        int next = Encode(hand, length, h1, a, mode);
+                        if (total < layerCost[target][next])
+                        {
+                            if (double.IsPositiveInfinity(layerCost[target][next]))
+                            {
+                                layerActive[target][layerCount[target]++] = next;
+                            }
+
+                            layerCost[target][next] = total;
+                            layerPrev[target][next] = (ushort)state;
+                        }
+                    }
+                }
+            }
+
+            private double RestrikeForHand(int i, RunView current, int want, int a, int h1, int b, int h2, double soft)
+            {
+                RunView older = ViewForHand(i - a, a, h1, want);
+                if (older == null && h2 >= 0) older = ViewForHand(i - a - b, b, h2, want);
+                if (older == null) return 0;
+
+                double cost = 0;
+                for (int x = 0; x < current.Count; x++)
+                {
+                    if (current.Owner[x] != want) continue;
+                    for (int y = 0; y < older.Count; y++)
+                    {
+                        if (older.Slot[y] != current.Slot[x]) continue;
+                        double gap = current.When[x] - older.Busy[y];
+                        if (gap < -TimeEpsilon) cost += OverlapHold;
+                        else if (gap < hard - TimeEpsilon) cost += BelowHard;
+                        else if (gap < floor - TimeEpsilon) cost += current.InChord[x] ? ChordBelowFloor : BelowFloor;
+                        else if (gap < soft - TimeEpsilon) cost += Restrike * (soft - gap) / soft;
+                        break;
+                    }
+                }
+
+                return cost;
+            }
+
+            private RunView ViewForHand(int start, int length, int hand, int want)
+            {
+                if (hand < 0) return null;
+                RunView view = views[start & (RingSize - 1), hand, length];
+                if (hand == BothHands) return view != null && view.HasOwner(want) ? view : null;
+                return hand == want ? view : null;
+            }
+
+            private int BuildCandidates(int i)
+            {
+                int ring = i & (RingSize - 1);
+                if (isBig[i])
+                {
+                    RunView view = ResetView(ring, BothHands, 1);
+                    int[] take = SplitBigChord(size[i]);
+                    for (int h = 0; h < 2; h++)
+                    {
+                        if (take[h] == 0) continue;
+                        int[] shape = hands.Shape(h, take[h], false);
+                        foreach (int slot in shape) view.Add(slot, h, onset[i], busyUntil[i], true);
+                    }
+
+                    candidates[0] = new Candidate { Length = 1, Hand = BothHands, View = view };
+                    return 1;
+                }
+
+                int count = 0;
+                for (int hand = 0; hand < 2; hand++)
+                {
+                    int total = 0;
+                    bool hasChord = false;
+                    for (int length = 1; length <= maxRun; length++)
+                    {
+                        int last = i + length - 1;
+                        if (last >= n || isBig[last]) break;
+                        if (length > 1 && onset[last] - onset[last - 1] > MaxInnerGap + TimeEpsilon) break;
+
+                        total += size[last];
+                        hasChord |= size[last] > 1;
+                        if (!hands.Fits(hand, total, hasChord, extraNeeded[i])) break;
+                        // 엄지 없이 동타를 네 손가락 묶음에 담으면 바깥 손가락으로 돌아가 모양이 흔들린다(;l jk). 손을 번갈아 가게 한다.
+                        if (length > 1 && hasChord && total >= 4 && !hands.HasThumb(hand) && !extraNeeded[i]) break;
+
+                        candidates[count++] = BuildRun(i, length, hand, total, hasChord, ring);
+                    }
+                }
+
+                return count;
+            }
+
+            private Candidate BuildRun(int i, int length, int hand, int total, bool hasChord, int ring)
+            {
+                int[] shape = hands.Shape(hand, total, length > 1 && hasChord);
+                RunView view = ResetView(ring, hand, length);
+                int picked = 0;
+                double own = 0;
+                for (int s = i; s < i + length; s++)
+                {
+                    for (int c = 0; c < size[s]; c++)
+                    {
+                        int slot = shape[picked++ % shape.Length];
+                        own += hands.FingerCost(slot);
+                        view.Add(slot, hand, onset[s], busyUntil[s], size[s] > 1);
+                    }
+                }
+
+                if (length > 1)
+                {
+                    double widest = 0;
+                    for (int k = i + 1; k < i + length; k++) widest = Math.Max(widest, onset[k] - onset[k - 1]);
+                    if (i > 0 && onset[i] - onset[i - 1] < widest * 0.8 - TimeEpsilon)
+                    {
+                        own += Boundary * (widest - (onset[i] - onset[i - 1])) / widest;
+                    }
+
+                    if (i + length < n && onset[i + length] - onset[i + length - 1] < widest * 0.8 - TimeEpsilon)
+                    {
+                        own += Boundary * (widest - (onset[i + length] - onset[i + length - 1])) / widest;
+                    }
+                }
+
+                double width = i + length < n ? onset[i + length] - onset[i] : pulse[i];
+                double missWhole = 0;
+                double missHalf = Math.Min(width, pulse[i]) / floor * HalfRent;
+                for (int k = i; k < i + length; k++)
+                {
+                    // 박동 창이 번갈아 양손의 몫이다. 창에 맞지 않는 슬롯마다 비용을 문다.
+                    if ((hand == 0) != (Side(onset[k], origin[i], pulse[i]) == 0)) missWhole += ParityMiss;
+                    if ((hand == 0) != (Side(onset[k], origin[i], pulse[i] / 2) == 0)) missHalf += ParityMiss;
+                }
+
+                if (hand != 0)
+                {
+                    int last = i + length - 1;
+                    bool lastEndsChain = last + 1 >= n || chainStart[last + 1];
+                    // 4키기반의 외톨이 음은 부손이어도 시작과 끝 비용을 물리지 않는다.
+                    if (!(base4 && chainStart[i] && lastEndsChain && length == 1))
+                    {
+                        if (lastEndsChain) own += EndOffMain;
+                        if (chainStart[i]) own += StartOffMain;
+                    }
+                }
+
+                return new Candidate { Length = length, Hand = hand, Own = own, MissWhole = missWhole, MissHalf = missHalf, View = view };
+            }
+
+            private RunView ResetView(int ring, int hand, int length)
+            {
+                RunView view = views[ring, hand, length];
+                if (view == null)
+                {
+                    view = new RunView();
+                    views[ring, hand, length] = view;
+                }
+
+                view.Count = 0;
+                return view;
+            }
+
+            private int[] BigChordFingers(int slot)
+            {
+                int[] take = SplitBigChord(size[slot]);
+                var fingers = new List<int>();
+                for (int h = 0; h < 2; h++)
+                {
+                    if (take[h] > 0) fingers.AddRange(hands.Shape(h, take[h], false));
+                }
+
+                return fingers.ToArray();
+            }
+
+            // 한 손에 안 들어가는 동타는 번갈아 나눈다. 주손이 먼저 받으므로 9동타의 엄지는 주손 쪽이다.
+            private int[] SplitBigChord(int chord)
+            {
+                var take = new int[2];
+                for (int k = 0; k < chord; k++)
+                {
+                    int h = k % 2;
+                    if (take[h] >= hands.Capacity[h]) h = 1 - h;
+                    if (take[h] < hands.Capacity[h]) take[h]++;
+                }
+
+                return take;
+            }
+
+            private bool RunHasChord(int start, int length)
+            {
+                for (int k = start; k < start + length; k++)
+                {
+                    if (size[k] > 1) return true;
+                }
+
+                return false;
+            }
+
+            private static int Side(double time, double origin, double unit)
+            {
+                long cell = (long)Math.Floor((time - origin + GridEpsilon) / unit);
+                return (int)(((cell % 2) + 2) % 2);
+            }
+
+            private static int Encode(int hand, int length, int previousHand, int previousLength, int mode)
+            {
+                int current = (hand + 1) * LengthStates + length;
+                int previous = (previousHand + 1) * LengthStates + previousLength;
+                return (current * PairStates + previous) * 2 + mode;
+            }
+
+            private static int HandOfState(int state)
+            {
+                return state / 2 / PairStates / LengthStates - 1;
+            }
+
+            private static int LengthOfState(int state)
+            {
+                return state / 2 / PairStates % LengthStates;
+            }
+
+            private static int PrevHandOfState(int state)
+            {
+                return state / 2 % PairStates / LengthStates - 1;
+            }
+
+            private static int PrevLengthOfState(int state)
+            {
+                return state / 2 % PairStates % LengthStates;
+            }
+
+            // 넘치면 비용이 낮은 상태만 남긴다. 나머지는 삽입 순서를 유지해 같은 입력이 항상 같은 결과를 내게 한다.
+            private static int Trim(double[] cost, int[] active, int count, int[] keep)
+            {
+                if (count <= BeamWidth) return count;
+
+                Array.Copy(active, keep, count);
+                var values = new double[count];
+                for (int i = 0; i < count; i++) values[i] = cost[active[i]];
+                Array.Sort(values);
+                double limit = values[BeamWidth - 1];
+
+                int kept = 0;
+                for (int i = 0; i < count; i++)
+                {
+                    int state = keep[i];
+                    if (cost[state] <= limit && kept < BeamWidth) active[kept++] = state;
+                    else cost[state] = double.PositiveInfinity;
+                }
+
+                return kept;
+            }
+
+            private void FindSlots(List<int> starts, List<int> sizes)
+            {
+                int i = 0;
+                int count = events.Length;
+                while (i < count)
+                {
+                    int j = i;
+                    while (j + 1 < count && events[j + 1].Time - events[j].Time <= ChordGap + TimeEpsilon) j++;
+                    if (j > i && events[j].Time - events[i].Time <= ChordSpan + TimeEpsilon)
+                    {
+                        starts.Add(i);
+                        sizes.Add(j - i + 1);
+                    }
+                    else
+                    {
+                        for (int k = i; k <= j; k++)
+                        {
+                            starts.Add(k);
+                            sizes.Add(1);
+                        }
+                    }
+
+                    i = j + 1;
+                }
+            }
+
+            private static double RungOf(double gap, double low)
+            {
+                while (gap < low) gap *= 2;
+                while (gap >= 2 * low) gap /= 2;
+                return gap;
+            }
+
+            // 간격을 2배수 사다리로 접어 시간 가중 최빈값을 낸다. 시간이 가장 많이 쓰인 박동이다.
+            private double PulseOf(int from, int to, double low, double fallback)
+            {
+                var weight = new SortedDictionary<int, double>();
+                var total = new Dictionary<int, double>();
+                for (int k = from + 1; k < to; k++)
+                {
+                    double gap = onset[k] - onset[k - 1];
+                    if (gap <= ChordGap + TimeEpsilon || gap >= 1) continue;
+                    double rung = RungOf(gap, low);
+                    int key = (int)Math.Round(rung * 400);
+                    double w;
+                    weight.TryGetValue(key, out w);
+                    weight[key] = w + gap;
+                    double sum;
+                    total.TryGetValue(key, out sum);
+                    total[key] = sum + gap * rung;
+                }
+
+                if (weight.Count == 0) return fallback;
+
+                int best = 0;
+                double bestWeight = double.NegativeInfinity;
+                foreach (KeyValuePair<int, double> pair in weight)
+                {
+                    if (pair.Value > bestWeight)
+                    {
+                        bestWeight = pair.Value;
+                        best = pair.Key;
+                    }
+                }
+
+                return total[best] / weight[best];
+            }
+
+            private static bool OnGrid(double x, double beat)
+            {
+                return OnCell(x, beat / 8) || OnCell(x, beat / 12);
+            }
+
+            private static bool OnCell(double x, double cell)
+            {
+                double q = x / cell;
+                return Math.Abs(q - Math.Round(q)) * cell <= GridTolerance;
+            }
+
+            // 같은 격자에 맞는 슬롯끼리 구간으로 묶고 구간마다 (원점, 박동)을 정한다.
+            private void FindGridSections(double low, double chainGap)
+            {
+                if (n == 0) return;
+
+                double whole = PulseOf(0, n, low, 2 * low);
+                int i = 0;
+                while (i < n)
+                {
+                    int limit = Math.Min(n, i + 9);
+                    int hits = 0;
+                    for (int k = i + 1; k < limit; k++)
+                    {
+                        if (OnGrid(onset[k] - onset[i], whole)) hits++;
+                    }
+
+                    double here = hits >= Math.Min(n - i - 1, 8) * 0.6 ? whole : PulseOf(i, Math.Min(n, i + 48), low, whole);
+
+                    int j = i + 1;
+                    int misses = 0;
+                    int firstMiss = -1;
+                    while (j < n)
+                    {
+                        if (OnGrid(onset[j] - onset[i], here))
+                        {
+                            misses = 0;
+                            firstMiss = -1;
+                        }
+                        else
+                        {
+                            misses++;
+                            if (firstMiss < 0) firstMiss = j;
+                            if (misses >= GridMisses) break;
+                        }
+
+                        j++;
+                    }
+
+                    int end = misses >= GridMisses ? firstMiss : n;
+                    double start = onset[i] + BusiestCell(i, end, here) / 24.0 * here;
+
+                    // 패리티: 체인 끝이 주손 창에 더 많이 떨어지는 쪽이다.
+                    int votesEven = 0;
+                    int votesOdd = 0;
+                    for (int k = i; k < end; k++)
+                    {
+                        double after = k + 1 < n ? onset[k + 1] - onset[k] : 9;
+                        double before = k > 0 ? onset[k] - onset[k - 1] : 9;
+                        if (after >= chainGap - TimeEpsilon && before < chainGap - TimeEpsilon)
+                        {
+                            if (Side(onset[k], start, here) == 0) votesEven++;
+                            else votesOdd++;
+                        }
+                    }
+
+                    if (votesOdd > votesEven) start += here;
+
+                    for (int k = i; k < end; k++)
+                    {
+                        origin[k] = start;
+                        pulse[k] = here;
+                    }
+
+                    i = end;
+                }
+            }
+
+            private int BusiestCell(int from, int to, double beat)
+            {
+                var counts = new int[24];
+                for (int k = from; k < to; k++)
+                {
+                    double offset = onset[k] - onset[from];
+                    double phase = offset - Math.Floor(offset / beat) * beat;
+                    int cell = ((int)Math.Round(phase / beat * 24)) % 24;
+                    counts[cell]++;
+                }
+
+                int best = 0;
+                for (int c = 1; c < 24; c++)
+                {
+                    if (counts[c] > counts[best]) best = c;
+                }
+
+                return best;
             }
         }
     }
