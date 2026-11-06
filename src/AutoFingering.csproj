@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>12.0</LangVersion>
+    <AssemblyName>AutoFingering</AssemblyName>
+    <RootNamespace>AutoFingering</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <DebugType>none</DebugType>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- 배포 빌드는 구버전(R145) 기준이다. 다른 설치는 -p:GameDir=... 로 지정한다 -->
+    <GameDir Condition="'$(GameDir)' == ''">F:\SteamLibrary\steamapps\common\A Dance of Fire and Ice</GameDir>
+    <Managed>$(GameDir)\A Dance of Fire and Ice_Data\Managed</Managed>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- pack.ps1은 obj를 임시 폴더로 돌린다. 그때 기본 빌드가 남긴 src/obj의 .cs가 다시 컴파일되지 않게 막는다 -->
+    <Compile Remove="bin\**;obj\**" />
+    <!-- Private=false: 게임 DLL이 출력에 복사되어 배포 zip에 섞이지 않게 한다 -->
+    <Reference Include="netstandard"><HintPath>$(Managed)\netstandard.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp"><HintPath>$(Managed)\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="RDTools"><HintPath>$(Managed)\RDTools.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(Managed)\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(Managed)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AudioModule"><HintPath>$(Managed)\UnityEngine.AudioModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(Managed)\UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(Managed)\UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UI"><HintPath>$(Managed)\UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UIModule"><HintPath>$(Managed)\UnityEngine.UIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityModManager"><HintPath>$(Managed)\UnityModManager\UnityModManager.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(Managed)\UnityModManager\0Harmony.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+  <!-- 게임이 없으면 수백 줄의 참조 오류 대신 원인을 한 줄로 알려 준다 -->
+  <Target Name="CheckGameDir" BeforeTargets="ResolveAssemblyReferences" Condition="!Exists('$(Managed)\Assembly-CSharp.dll')">
+    <Error Text="게임을 찾지 못함: $(GameDir). UMM이 설치된 게임 폴더를 -p:GameDir=경로 로 지정하세요." />
+  </Target>
+</Project>
