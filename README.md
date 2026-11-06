@@ -35,7 +35,7 @@ A Dance of Fire and Ice용 UnityModManager 모드입니다. 게임의 자동 재
 
 `테스트`를 누르고 두 키를 번갈아 5초 동안 최대한 빠르게 치면 값이 바로 적용됩니다. 시간은 첫 입력부터 재고, 처음 누른 두 키만 셉니다. 직접 정하려면 옆의 슬라이더를 움직이거나 `-`, `+`로 1 BPM씩 맞춥니다.
 
-테스트는 메인 메뉴에서만 됩니다. 게임은 UnityModManager 창이 열려 있어도 키 입력을 처리하므로, 에디터에서는 연타가 타일을 고칠 수 있고 커스텀 레벨 선택에서는 레벨이 시작될 수 있기 때문입니다. 테스트하는 동안에는 행성이 키에 반응하지 않습니다. 그래도 화면이 바뀌면 테스트는 취소됩니다. 테스트 중 누른 키는 실제 입력이므로 키 뷰어에 켜지고 Jipper 키 통계에도 더해집니다.
+테스트는 메인 메뉴에서만 됩니다. 게임은 UnityModManager 창이 열려 있어도 키 입력을 처리하므로, 에디터에서는 연타가 타일을 고칠 수 있고 커스텀 레벨 선택에서는 레벨이 시작될 수 있기 때문입니다. 테스트하는 동안에는 행성이 키에 반응하지 않고, 끝나면 바로 다시 반응합니다. 그래도 화면이 바뀌면 테스트는 취소됩니다. 테스트 중 누른 키는 실제 입력이므로 키 뷰어에 켜지고 Jipper 키 통계에도 더해집니다.
 
 롤 방식별 순서는 다음과 같습니다. 오른손이 주손인 4키 `D F J K` 기준입니다.
 
@@ -77,9 +77,9 @@ Windows Sandbox 안의 Mods 폴더에 1.1.0 zip의 파일을 복사하고, 테�
 | R150 | 없음, 자동 재생 끔 + 자동 타일 | 일반 1회 (의도한 실패로 종료) | 키 점등 0회 |
 | R145 | Jipper 1.4.9 | 에디터 2회 | 126번 일치, 키 통계 복원 |
 
-2키 기반 최대 속도 테스트는 R150과 R145의 메인 메뉴에서 Windows 키 입력을 넣어 확인했습니다. 두 키를 12 KPS와 20 KPS로 번갈아 넣으면 각각 12.0, 20.0 KPS로 측정됐고, 한 키만 넣으면 값이 바뀌지 않았습니다. 취소, 창 닫기, 측정 중 화면 전환, 에디터에서의 시작 거부도 확인했습니다. 사람이 키보드로 치는 경우와 `테스트` 버튼과 슬라이더를 마우스로 조작하는 경우는 확인하지 못했습니다. 테스트용 모드가 버튼과 같은 코드를 직접 호출했습니다.
+2키 기반 최대 속도 테스트는 R150과 R145의 메인 메뉴에서 Windows 키 입력과 마우스 클릭을 넣어 확인했습니다. 두 키를 720, 960, 1,200 BPM으로 번갈아 넣으면 각각 약 720, 962, 1,200 BPM으로 측정됐습니다. 측정 중에는 키 76번에 행성이 한 번도 반응하지 않았고, 끝나면 입력이 돌아왔습니다. 한 키만 넣으면 값이 바뀌지 않았습니다. 취소, 창 닫기, 측정 중 화면 전환, 에디터에서의 시작 거부, `테스트`, `-`, `+`, 슬라이더 클릭도 확인했습니다. 사람이 키보드로 치는 경우는 확인하지 못했습니다.
 
-REX는 아직 켜져 있는 키를 다시 누를 때 한 프레임 뒤로 밀리므로 켠 순서가 계획과 일부 다릅니다. LineKeyViewer 쪽 점등 횟수는 126번 중 1번, REX에서 7,040번 중 25-26번 적게 집계된 적이 있습니다. 같은 실행에서 Jipper는 전부 켜졌고, 원인은 밝히지 못했습니다.
+REX는 아직 켜져 있는 키를 다시 누를 때 한 프레임 뒤로 밀리므로 켠 순서가 계획과 일부 다릅니다. LineKeyViewer 쪽 점등 횟수는 126번 중 1번, REX에서 7,040번 중 25-29번 적게 집계된 적이 있습니다. 같은 실행에서 Jipper는 전부 켜졌고, 원인은 밝히지 못했습니다.
 
 ## 알려진 제한
 
@@ -158,7 +158,7 @@ It only displays. It sends no input and never changes `RDC.auto`, so it has no e
 
 Press `Test` and alternate two keys as fast as you can for 5 seconds, and the value applies right away. Timing starts at your first press, and only the first two keys you press count. To set it yourself, move the slider next to the button, or use `-` and `+` for steps of 1 BPM.
 
-The test only runs from the main menu. The game keeps handling keys while the UnityModManager window is open, so mashing could edit tiles in the editor or start a level in custom level select. The planet ignores keys during the test, and the test stops if the screen changes anyway. Keys pressed during the test are real input, so they light your key viewer and add to Jipper's key stats.
+The test only runs from the main menu. The game keeps handling keys while the UnityModManager window is open, so mashing could edit tiles in the editor or start a level in custom level select. The planet ignores keys during the test and responds again as soon as it ends, and the test stops if the screen changes anyway. Keys pressed during the test are real input, so they light your key viewer and add to Jipper's key stats.
 
 Each roll style uses this order, shown for 4 keys `D F J K` with the right hand as main hand.
 
@@ -200,9 +200,9 @@ The files from the 1.1.0 zip were copied into the Mods folder inside Windows San
 | R150 | None, autoplay off with auto tiles | Normal once (ends in a deliberate fail) | No keys lit |
 | R145 | Jipper 1.4.9 | Editor twice | All 126 matched, key stats restored |
 
-The 2-key max speed test was checked from the main menu on R150 and R145 with injected Windows key input. Alternating two keys at 12 and 20 KPS measured 12.0 and 20.0 KPS, and one key alone left the value unchanged. Cancelling, closing the window, a screen change during the test and the refusal in the editor were also checked. A person playing on a keyboard, and operating the `Test` button and slider with a mouse, were not checked. The test mod called the same code the button calls.
+The 2-key max speed test was checked from the main menu on R150 and R145 with injected Windows key input and mouse clicks. Alternating two keys at 720, 960 and 1,200 BPM measured about 720, 962 and 1,200 BPM. During a test the planet did not respond once in 76 presses, and input came back afterwards. One key alone left the value unchanged. Cancelling, closing the window, a screen change during the test, the refusal in the editor, and clicks on `Test`, `-`, `+` and the slider were also checked. A person playing on a keyboard was not checked.
 
-On REX a key that is still lit is re-pressed one frame later, so the lit order partly differs from the plan. LineKeyViewer's lit count came out 1 short of 126, and 25-26 short of 7,040 on REX. Jipper lit all of them in those same runs, and the cause was not determined.
+On REX a key that is still lit is re-pressed one frame later, so the lit order partly differs from the plan. LineKeyViewer's lit count came out 1 short of 126, and 25-29 short of 7,040 on REX. Jipper lit all of them in those same runs, and the cause was not determined.
 
 ## Known limits
 
