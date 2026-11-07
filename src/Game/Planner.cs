@@ -157,7 +157,6 @@ namespace AutoFingering.Game
             h = Mix(h, options.Base);
             h = Mix(h, options.MaxKeys);
             h = Mix(h, BitConverter.DoubleToInt64Bits(options.Floor));
-            h = Mix(h, (long)options.TripletSplit);
             foreach (KeySlot slot in layout.Slots)
             {
                 h = Mix(h, slot.KeyCode);

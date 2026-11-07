@@ -65,7 +65,6 @@ namespace AutoFingering
             DrawBase(settings);
             DrawMaxKeys(settings);
             DrawMaxSpeed(settings);
-            DrawSplit(settings);
             DrawRoles(settings);
             DrawStatus();
         }
@@ -177,22 +176,6 @@ namespace AutoFingering
                 default:
                     return "";
             }
-        }
-
-        private static void DrawSplit(Settings settings)
-        {
-            BeginRow(T("3연타 나누기", "Triplet split"));
-            if (Choice(T("주손 두 손가락", "Main hand two fingers"), settings.Split == TripletSplit.MainTwoFingers))
-            {
-                settings.Split = TripletSplit.MainTwoFingers;
-            }
-
-            if (Choice(T("부손 두 손가락", "Off hand two fingers"), settings.Split == TripletSplit.OffTwoFingers))
-            {
-                settings.Split = TripletSplit.OffTwoFingers;
-            }
-
-            EndRow();
         }
 
         private static void DrawRoles(Settings settings)
