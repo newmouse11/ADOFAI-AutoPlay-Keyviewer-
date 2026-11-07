@@ -26,8 +26,9 @@ namespace AutoFingering.Core
         // Floor의 이 비율 아래로는 같은 손가락으로 실제로 칠 수 없다.
         private const double HardFloorRatio = 0.75;
 
-        private const double GridTolerance = 0.002;
-        private const double GridEpsilon = 0.003;
+        // 사용자가 정하는 리듬 오차 범위의 안전 한계다. 설정 창은 이보다 좁은 범위만 준다.
+        private const double MinTolerance = 0.0005;
+        private const double MaxTolerance = 0.02;
         private const int GridMisses = 4;
 
         private const double BelowHard = 30;
@@ -400,6 +401,8 @@ namespace AutoFingering.Core
             private readonly double hard;
             private readonly double comfort;
             private readonly double comfortFast;
+            private readonly double tolerance;
+            private readonly double gridEpsilon;
 
             private readonly int n;
             private readonly int[] slotStart;
@@ -424,6 +427,8 @@ namespace AutoFingering.Core
                 this.hands = hands;
                 this.token = token;
                 floor = options.Floor;
+                tolerance = Math.Min(Math.Max(options.Tolerance, MinTolerance), MaxTolerance);
+                gridEpsilon = tolerance * 1.5;
                 hard = floor * HardFloorRatio;
                 base4 = options.Base >= 4;
                 comfort = floor * (base4 ? Comfort4 : Comfort2);
@@ -460,7 +465,7 @@ namespace AutoFingering.Core
                 if (n > 0) chainStart[0] = true;
                 for (int k = 1; k < n; k++)
                 {
-                    chainStart[k] = onset[k] - onset[k - 1] >= chainGap - TimeEpsilon || isBig[k] || isBig[k - 1];
+                    chainStart[k] = onset[k] - onset[k - 1] >= chainGap - tolerance || isBig[k] || isBig[k - 1];
                 }
 
                 // 여덟 손가락을 다 돌려도 실제로 못 치는 연타에서만 엄지와 손바닥을 연타에 쓴다.
@@ -744,7 +749,7 @@ namespace AutoFingering.Core
                     {
                         int last = i + length - 1;
                         if (last >= n || isBig[last]) break;
-                        if (length > 1 && onset[last] - onset[last - 1] > MaxInnerGap + TimeEpsilon) break;
+                        if (length > 1 && onset[last] - onset[last - 1] > MaxInnerGap + tolerance) break;
 
                         total += size[last];
                         hasChord |= size[last] > 1;
@@ -869,9 +874,9 @@ namespace AutoFingering.Core
                 return false;
             }
 
-            private static int Side(double time, double origin, double unit)
+            private int Side(double time, double origin, double unit)
             {
-                long cell = (long)Math.Floor((time - origin + GridEpsilon) / unit);
+                long cell = (long)Math.Floor((time - origin + gridEpsilon) / unit);
                 return (int)(((cell % 2) + 2) % 2);
             }
 
@@ -967,8 +972,8 @@ namespace AutoFingering.Core
                     double gap = onset[k] - onset[k - 1];
                     if (gap <= ChordGap + TimeEpsilon || gap >= 1 - TimeEpsilon) continue;
                     double rung = RungOf(gap, low);
-                    // ponytail: 2.5 ms 칸. 경계를 0.5에서 옮겨 160 BPM처럼 흔한 박자가 경계에 걸려 시각 오차로 칸이 갈리는 일을 막는다. 군집화는 실제 문제가 생기면 한다.
-                    int key = (int)Math.Round(rung * 400 + PulseBinShift);
+                    // ponytail: 오차 범위의 1.25배(기본 2.5 ms) 칸. 경계를 0.5에서 옮겨 160 BPM처럼 흔한 박자가 경계에 걸려 시각 오차로 칸이 갈리는 일을 막는다. 군집화는 실제 문제가 생기면 한다.
+                    int key = (int)Math.Round(rung / (tolerance * 1.25) + PulseBinShift);
                     double w;
                     weight.TryGetValue(key, out w);
                     weight[key] = w + gap;
@@ -993,15 +998,15 @@ namespace AutoFingering.Core
                 return total[best] / weight[best];
             }
 
-            private static bool OnGrid(double x, double beat)
+            private bool OnGrid(double x, double beat)
             {
                 return OnCell(x, beat / 8) || OnCell(x, beat / 12);
             }
 
-            private static bool OnCell(double x, double cell)
+            private bool OnCell(double x, double cell)
             {
                 double q = x / cell;
-                return Math.Abs(q - Math.Round(q)) * cell <= GridTolerance;
+                return Math.Abs(q - Math.Round(q)) * cell <= tolerance;
             }
 
             // 같은 격자에 맞는 슬롯끼리 구간으로 묶고 구간마다 (원점, 박동)을 정한다.
@@ -1052,7 +1057,7 @@ namespace AutoFingering.Core
                     {
                         double after = k + 1 < n ? onset[k + 1] - onset[k] : 9;
                         double before = k > 0 ? onset[k] - onset[k - 1] : 9;
-                        if (after >= chainGap - TimeEpsilon && before < chainGap - TimeEpsilon)
+                        if (after >= chainGap - tolerance && before < chainGap - tolerance)
                         {
                             if (Side(onset[k], start, here) == 0) votesEven++;
                             else votesOdd++;

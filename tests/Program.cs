@@ -323,6 +323,26 @@ namespace AutoFingering.Tests
                 Check(Labels(layout, FingeringSolver.Solve(shaky, layout, JipperOptions(2)).Slot) == sectionClean, $"noise flips a section at the pulse bin edge, seed {seed}");
             }
 
+            // 오차 범위를 넓히면 박자가 조금 흔들려도 같은 모양이 나온다. 100 ms 연타에 ±2 ms를 흔들어도 "dfkj"가 이어진다.
+            var wide = JipperOptions();
+            wide.Tolerance = 0.005;
+            var swing = new Random(7);
+            PressEvent[] swung = Stream(96, 0.1, 4);
+            for (int i = 0; i < swung.Length; i++) swung[i].Time += (swing.NextDouble() - 0.5) * 4e-3;
+            string swungLabels = Labels(layout, FingeringSolver.Solve(swung, layout, wide).Slot);
+            var breaks = new Dictionary<double, int>();
+            foreach (double ms in new[] { 1.0, 10.0 })
+            {
+                wide.Tolerance = ms / 1000;
+                string text = Labels(layout, FingeringSolver.Solve(swung, layout, wide).Slot);
+                int count = 0;
+                for (int i = 28; i < 72; i++) count += text[i] != text[i - 4] ? 1 : 0;
+                breaks[ms] = count;
+            }
+
+            Check(breaks[10.0] == 0, $"10 ms tolerance keeps a shaky 100 ms stream on one shape, {breaks[10.0]} breaks");
+            Check(breaks[10.0] < breaks[1.0], $"a wider tolerance breaks the shape less: {breaks[10.0]} < {breaks[1.0]}");
+
             // 4키기반은 빨라질수록 손가락을 늘리기만 한다. 8손가락으로 갔다가 다시 4손가락으로 돌아오지 않는다.
             int widest = 0;
             for (int bpm = 300; bpm <= 2400; bpm += 60)

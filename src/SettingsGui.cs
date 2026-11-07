@@ -65,6 +65,7 @@ namespace AutoFingering
             DrawBase(settings);
             DrawMaxKeys(settings);
             DrawMaxSpeed(settings);
+            DrawTolerance(settings);
             DrawRoles(settings);
             DrawStatus();
         }
@@ -147,6 +148,22 @@ namespace AutoFingering
 
             GUILayout.Label(settings.GetTwoKeyBpm().ToString("0") + " BPM", GUILayout.Width(ValueWidth));
             GUILayout.Label(SpeedTestMessage(settings));
+            EndRow();
+        }
+
+        // 같은 리듬으로 볼 간격 오차. 크게 하면 박자가 조금 흔들려도 같은 모양이 나와 외우기 쉽고, 지퍼의 타법과는 조금 멀어질 수 있다.
+        private static void DrawTolerance(Settings settings)
+        {
+            BeginRow(T("리듬 오차 범위", "Rhythm tolerance"));
+            float current = (float)Math.Min(Math.Max(settings.ToleranceMs, Settings.MinToleranceMs), Settings.MaxToleranceMs);
+            float value = GUILayout.HorizontalSlider(current, (float)Settings.MinToleranceMs, (float)Settings.MaxToleranceMs, GUILayout.Width(SliderWidth));
+            double wanted = value != current ? Math.Round(value) : current;
+            if (GUILayout.Button("-", GUILayout.ExpandWidth(false))) wanted = Math.Round(current) - 1;
+            if (GUILayout.Button("+", GUILayout.ExpandWidth(false))) wanted = Math.Round(current) + 1;
+            if (wanted != current) settings.ToleranceMs = Math.Min(Math.Max(wanted, Settings.MinToleranceMs), Settings.MaxToleranceMs);
+
+            GUILayout.Label(Math.Round(settings.ToleranceMs).ToString("0") + " ms", GUILayout.Width(ValueWidth));
+            GUILayout.Label(T("간격 차이가 이 안이면 같은 리듬으로 봅니다.", "Gaps that differ by less than this count as the same rhythm."));
             EndRow();
         }
 

@@ -28,6 +28,7 @@ A Dance of Fire and Ice용 UnityModManager 모드입니다. 게임의 자동 재
 | 기반 | 2키 / 4키 | 2키 |
 | 최대 사용 키 | 4, 6, 8, 10, 12, 16, 전체 (뷰어의 키 수를 넘지 못함) | 전체 |
 | 2키 기반 최대 속도 | 테스트, 슬라이더 또는 `-`/`+` 버튼, 480-2000 BPM | 923 BPM |
+| 리듬 오차 범위 | 슬라이더 또는 `-`/`+` 버튼, 1-10 ms | 2 ms |
 | 키 역할 편집 | 슬롯마다 손과 손가락, 또는 사용 안 함. 키 개수별로 저장 | 뷰어 배열 순서로 추정 |
 
 2키 기반 최대 속도는 두 키를 번갈아 칠 때 낼 수 있는 분당 타수(BPM)입니다. Jipper 오버레이의 CBPM과 같은 기준이고, 60으로 나누면 KPS입니다. 번갈아 치면 한 손가락은 두 타마다 한 번 치므로, 이 값으로 같은 손가락을 다시 칠 수 있는 빠르기를 정합니다. 예를 들어 961 BPM이면 16.0 KPS이고, 같은 손가락 간격은 약 125 ms입니다.
@@ -50,6 +51,8 @@ A Dance of Fire and Ice용 UnityModManager 모드입니다. 게임의 자동 재
 | 2키기반, 798 BPM | 280까지 | 300-580 | 600-1440 | 1460부터 |
 
 두 기반의 차이는 지퍼의 영상에서 그대로 나옵니다. 같은 곡을 44 ms 간격의 4키기반에서는 8손가락으로, 37 ms 간격의 2키기반에서는 `D F K J`로 쳤습니다.
+
+**리듬 오차 범위:** 이 안의 간격 차이는 같은 리듬으로 봅니다. 박자가 조금 흔들리는 맵에서 값을 키우면 같은 모양이 이어져 외우기 쉽고, 대신 지퍼의 타법과는 조금 멀어질 수 있습니다. 합성한 100 ms 연타에 ±2 ms를 흔들면 1 ms에서는 모양이 여러 번 끊기고 10 ms에서는 끊기지 않습니다. 기본값 2 ms에서는 지퍼와의 일치율이 위 표와 같습니다. 같은 손가락을 다시 칠 수 있는 최소 간격이나 동타를 묶는 12 ms에는 적용하지 않습니다.
 
 **롤 방식**은 묶음을 나누는 데 영향을 주지 않고, 묶음 안의 방향만 정합니다. 오른손이 주손인 4키 기준입니다.
 
@@ -177,6 +180,7 @@ It only displays. It sends no input and never changes `RDC.auto`, so it has no e
 | Base | 2-key / 4-key | 2-key |
 | Max keys used | 4, 6, 8, 10, 12, 16, All (limited by the viewer's key count) | All |
 | 2-key max speed | Test, slider or `-`/`+` buttons, 480-2000 BPM | 923 BPM |
+| Rhythm tolerance | Slider or `-`/`+` buttons, 1-10 ms | 2 ms |
 | Key role editor | Hand and finger per slot, or not used. Saved per key count | Inferred from viewer array order |
 
 2-key max speed is how many presses per minute (BPM) you can reach alternating two keys. It matches CBPM on the Jipper overlay, and dividing by 60 gives KPS. Alternating means each finger plays every second press, so this value sets how fast the same finger may repeat. For example, 961 BPM is 16.0 KPS, which means about 125 ms between presses of one finger.
@@ -199,6 +203,8 @@ The fingering follows real play by world rank 1 [Jipper](https://www.youtube.com
 | 2-key, 798 BPM | up to 280 | 300-580 | 600-1440 | from 1460 |
 
 The difference between the two bases comes straight from Jipper's videos. He played the same song with eight fingers on 4-key base at 44 ms gaps, and with `D F K J` on 2-key base at 37 ms gaps.
+
+**Rhythm tolerance:** gaps that differ by less than this count as the same rhythm. On charts with a slightly shaky beat, a larger value keeps the same shape going and is easier to memorize, at the cost of drifting a little from Jipper's play. On a synthetic 100 ms stream shaken by ±2 ms, the shape broke many times at 1 ms and did not break at 10 ms. At the default 2 ms the match with Jipper is the same as in the table above. It does not apply to the minimum gap for repeating a finger or to the 12 ms chord window.
 
 **Roll style** does not affect how runs are split, only the direction inside a run. Shown for 4 keys with the right hand as main hand.
 

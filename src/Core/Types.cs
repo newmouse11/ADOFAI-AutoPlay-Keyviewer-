@@ -54,6 +54,9 @@ namespace AutoFingering.Core
         public int Base = 2;
         public int MaxKeys = AllKeys;
         public double Floor = 0.130;
+
+        // 같은 리듬으로 볼 간격 오차(초). 이 안의 차이는 박자 격자, 박동, 묶음 경계에서 같은 값으로 본다.
+        public double Tolerance = 0.002;
     }
 
     public sealed class Solution
