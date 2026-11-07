@@ -265,6 +265,72 @@ namespace AutoFingering.Tests
             string jitter = Labels(layout, FingeringSolver.Solve(noisy, layout, JipperOptions()).Slot);
             Check(clean == jitter, $"timing noise changes the shape: {clean.Substring(24, 24)} / {jitter.Substring(24, 24)}");
             Check(Cycles(jitter, "dfkj"), $"100 ms stream: {jitter.Substring(24, 24)}");
+
+            // 격자 사다리의 경계에 걸리는 간격도 마찬가지다.
+            foreach (double gap in new[] { Jipper * 0.67, Jipper * 1.34, Jipper, Jipper * 2 })
+            {
+                foreach (int baseKeys in new[] { 2, 4 })
+                {
+                    PressEvent[] even = Stream(96, gap, 4);
+                    PressEvent[] shaky = Stream(96, gap, 4);
+                    for (int i = 0; i < shaky.Length; i++) shaky[i].Time += (noise.NextDouble() - 0.5) * 8e-8;
+                    string steady = Labels(layout, FingeringSolver.Solve(even, layout, JipperOptions(baseKeys)).Slot);
+                    string moved = Labels(layout, FingeringSolver.Solve(shaky, layout, JipperOptions(baseKeys)).Slot);
+                    Check(steady == moved, $"noise flips the shape at gap {gap * 1000:F1} ms base {baseKeys}: {steady.Substring(24, 16)} / {moved.Substring(24, 16)}");
+                }
+            }
+
+            // 비용은 실제 누르는 순서로 본다. 30 ms보다 좁은 두 음을 바깥 손가락부터 계산하면 못 치는 재타를 놓친다.
+            var gallop = new PressEvent[240];
+            double beat = 0;
+            for (int i = 0; i < gallop.Length; i++)
+            {
+                gallop[i] = new PressEvent(beat, i);
+                beat += new[] { 0.055, 0.0275, 0.0275 }[i % 3];
+            }
+
+            double gallopFastest = MinSameSlotGap(gallop, FingeringSolver.Solve(gallop, Layout8(), JipperOptions()).Slot);
+            Check(gallopFastest >= Jipper * 0.75, $"2,1,1 rhythm repeats a finger after {gallopFastest * 1000:F1} ms");
+
+            // 짧은 입력의 끝부분과, 흔한 박자가 박동 칸의 경계에 걸리는 입력도 시각 오차로 모양이 바뀌지 않는다.
+            var slowFloor = new SolverOptions { Style = RollStyle.Inward, MainHand = Hand.Left, Base = 4, Floor = 0.130 };
+            var shortRuns = new[] { Stream(6, 0.125, 2), Stream(10, 0.15, 2) };
+            foreach (PressEvent[] even in shortRuns)
+            {
+                for (int seed = 0; seed < 8; seed++)
+                {
+                    var wobble = new Random(seed);
+                    PressEvent[] shaky = even.Select(e => new PressEvent(e.Time + (wobble.NextDouble() - 0.5) * 2e-8, e.Beat)).ToArray();
+                    Check(Labels(Layout8(), FingeringSolver.Solve(even, Layout8(), slowFloor).Slot) == Labels(Layout8(), FingeringSolver.Solve(shaky, Layout8(), slowFloor).Slot), $"noise flips a short run of {even.Length} notes, seed {seed}");
+                }
+            }
+
+            var section = new List<PressEvent>();
+            for (int i = 0; i < 60; i++) section.Add(new PressEvent(i * 0.05, i));
+            double after = 60 * 0.05 + 2;
+            for (int i = 0; i < 16; i++)
+            {
+                section.Add(new PressEvent(after, 60 + i));
+                after += i % 2 == 0 ? 0.1875 : 0.375;
+            }
+
+            PressEvent[] sectionEvents = section.ToArray();
+            string sectionClean = Labels(layout, FingeringSolver.Solve(sectionEvents, layout, JipperOptions(2)).Slot);
+            for (int seed = 0; seed < 8; seed++)
+            {
+                var wobble = new Random(100 + seed);
+                PressEvent[] shaky = sectionEvents.Select(e => new PressEvent(e.Time + (wobble.NextDouble() - 0.5) * 2e-8, e.Beat)).ToArray();
+                Check(Labels(layout, FingeringSolver.Solve(shaky, layout, JipperOptions(2)).Slot) == sectionClean, $"noise flips a section at the pulse bin edge, seed {seed}");
+            }
+
+            // 4키기반은 빨라질수록 손가락을 늘리기만 한다. 8손가락으로 갔다가 다시 4손가락으로 돌아오지 않는다.
+            int widest = 0;
+            for (int bpm = 300; bpm <= 2400; bpm += 60)
+            {
+                int used = Distinct(FingeringSolver.Solve(Stream(200, 60.0 / bpm, 4), layout, JipperOptions()).Slot, 80, 140);
+                Check(used >= widest, $"4-key base drops to {used} fingers at {bpm} BPM after using {widest}");
+                widest = Math.Max(widest, used);
+            }
         }
 
         private static PressEvent[] ChordStream(double period, params int[] pattern)
@@ -277,6 +343,20 @@ namespace AutoFingering.Tests
             }
 
             return events.ToArray();
+        }
+
+        private static double MinSameSlotGap(PressEvent[] events, byte[] slots)
+        {
+            var last = new Dictionary<byte, double>();
+            double fastest = double.PositiveInfinity;
+            for (int i = 0; i < events.Length; i++)
+            {
+                double before;
+                if (last.TryGetValue(slots[i], out before)) fastest = Math.Min(fastest, events[i].Time - before);
+                last[slots[i]] = events[i].Time;
+            }
+
+            return fastest;
         }
 
         private static List<string> ChordGroups(PressEvent[] events, byte[] slots, Layout layout)
@@ -325,6 +405,38 @@ namespace AutoFingering.Tests
             List<string> twoGroups = ChordGroups(twos, FingeringSolver.Solve(twos, eightKeys, JipperOptions()).Slot, eightKeys);
             string twoShape = string.Join(" ", twoGroups.Skip(16).Take(4));
             Check(twoGroups.All(g => g == "df" || g == "jk"), $"2-note chords on 8 keys keep the inner fingers: {twoShape}");
+
+            // 번갈아 치면 실제로 못 치는 빠르기에서는 바깥 손가락까지 돌린다.
+            foreach (double gap in new[] { 0.030, 0.035, 0.039 })
+            {
+                PressEvent[] fastTwos = ChordStream(gap, 2);
+                double fastest = MinSameSlotGap(fastTwos, FingeringSolver.Solve(fastTwos, eightKeys, JipperOptions()).Slot);
+                Check(fastest >= Jipper * 0.75, $"2-note chords every {gap * 1000} ms on 8 keys repeat a finger after {fastest * 1000:F0} ms");
+            }
+
+            // 번갈아 칠 수 있으면 같은 손으로 같은 키를 재타하지 않는다: [jk] [jk] [df] [df]가 아니다.
+            foreach (double gap in new[] { 0.085, 0.09, 0.105 })
+            {
+                PressEvent[] nearFloor = ChordStream(gap, 2);
+                List<string> nearGroups = ChordGroups(nearFloor, FingeringSolver.Solve(nearFloor, eightKeys, JipperOptions()).Slot, eightKeys);
+                bool repeated = false;
+                for (int i = 1; i < nearGroups.Count; i++) repeated |= nearGroups[i] == nearGroups[i - 1];
+                Check(!repeated, $"2-note chords every {gap * 1000} ms repeat on one hand: {string.Join(" ", nearGroups.Skip(16).Take(4))}");
+            }
+
+            // 쉼 직전이나 레벨 끝의 동타도 빠른 간격을 놓치지 않는다.
+            var uneven = new List<PressEvent>();
+            double clock = 0;
+            for (int i = 0; i < 120; i++)
+            {
+                uneven.Add(new PressEvent(clock, i));
+                uneven.Add(new PressEvent(clock + 0.0014, i));
+                clock += new[] { 0.0241, 0.0417, 0.0417 }[i % 3];
+            }
+
+            PressEvent[] unevenEvents = uneven.ToArray();
+            double unevenFastest = MinSameSlotGap(unevenEvents, FingeringSolver.Solve(unevenEvents, eightKeys, JipperOptions(2)).Slot);
+            Check(unevenFastest >= Jipper * 0.75, $"uneven chords repeat a finger after {unevenFastest * 1000:F1} ms");
 
             // 큰 동타는 양손을 쓰고 매번 같은 손가락을 잡는다. 125 ms 반복이 최소 간격보다 짧아도 돌려 쓰지 않는다(REX 8동타).
             foreach (double floor in new[] { Jipper, 0.130, 0.150 })
@@ -788,7 +900,7 @@ namespace AutoFingering.Tests
             Check(first.FloorViolations == second.FloorViolations, "same input gives same violations");
             Console.WriteLine($"  sample checksum {Checksum(first.Slot):x8}, violations {first.FloorViolations}");
             // 프로세스가 달라도 같아야 하므로 값을 고정한다. 비용 가중치를 일부러 바꿨을 때만 갱신한다.
-            Check(Checksum(first.Slot) == 0xea46d597, "checksum changed between runs");
+            Check(Checksum(first.Slot) == 0xf749ae9c, "checksum changed between runs");
 
             PressEvent[] million = MixedStream(1000000, 11);
             var watch = Stopwatch.StartNew();
@@ -880,14 +992,14 @@ namespace AutoFingering.Tests
             Check(log.Count == 2 && log[1] == (0, false), "tap goes dark after 0.8 * gap");
             Check(keys.TapsDrained, "no tap left");
 
-            // 다음 사용이 없으면 상한 70 ms, 간격이 짧으면 하한 50 ms에서 한 프레임을 뺀다.
+            // 다음 사용이 없으면 상한 65 ms, 간격이 짧으면 하한 50 ms에서 한 프레임을 뺀다.
             log.Clear();
             keys.SetClock(2f, ++frame, Dt);
             keys.Press(0, 1, false, float.PositiveInfinity);
-            Step(2.069f);
-            Check(log.Count == 1, "unused slot stays lit below the 70 ms cap");
-            Step(2.071f);
-            Check(log.Count == 2, "unused slot goes dark at the 70 ms cap");
+            Step(2.064f);
+            Check(log.Count == 1, "unused slot stays lit below the 65 ms cap");
+            Step(2.066f);
+            Check(log.Count == 2, "unused slot goes dark at the 65 ms cap");
 
             log.Clear();
             keys.SetClock(3f, ++frame, Dt);

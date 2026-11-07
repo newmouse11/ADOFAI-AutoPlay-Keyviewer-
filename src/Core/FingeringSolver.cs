@@ -18,6 +18,8 @@ namespace AutoFingering.Core
         // 게임의 entryTime은 누적 합이라 정확히 100 ms인 간격도 1e-8초쯤 흔들린다. 경계 비교에 여유가 없으면
         // 같은 리듬인데 음마다 판정이 갈려 모양이 뒤죽박죽이 된다. 시각 비교는 전부 이 여유를 둔다.
         private const double TimeEpsilon = 1e-6;
+        private const double CostEpsilon = 1e-6;
+        private const double PulseBinShift = 0.123;
         private const int BothHands = 2;
         private const int BigChord = 6;
 
@@ -535,7 +537,7 @@ namespace AutoFingering.Core
                 double bestCost = double.PositiveInfinity;
                 for (int s = 0; s < StateCount; s++)
                 {
-                    if (layerCost[finalLayer][s] < bestCost)
+                    if (layerCost[finalLayer][s] < bestCost - CostEpsilon)
                     {
                         bestCost = layerCost[finalLayer][s];
                         best = s;
@@ -663,7 +665,8 @@ namespace AutoFingering.Core
                         }
 
                         int next = Encode(hand, length, h1, a, mode);
-                        if (total < layerCost[target][next])
+                        // 같은 리듬이면 비용이 같아야 하는데 시각 오차로 미세하게 갈린다. 작은 차이로는 먼저 찾은 경로를 뒤집지 않는다.
+                        if (total < layerCost[target][next] - CostEpsilon)
                         {
                             if (double.IsPositiveInfinity(layerCost[target][next]))
                             {
@@ -693,7 +696,8 @@ namespace AutoFingering.Core
                         double gap = current.When[x] - older.Busy[y];
                         if (gap < -TimeEpsilon) cost += OverlapHold;
                         else if (gap < hard - TimeEpsilon) cost += BelowHard;
-                        else if (gap < floor - TimeEpsilon) cost += current.InChord[x] ? ChordBelowFloor : BelowFloor;
+                        // 번갈아 가는 동타와 큰 동타만 봐 준다. 같은 손으로 이어 치는 [jk] [jk]는 번갈아 칠 수 있는데도 재타하는 것이다.
+                        else if (gap < floor - TimeEpsilon) cost += current.InChord[x] && h1 != want ? ChordBelowFloor : BelowFloor;
                         else if (gap < soft - TimeEpsilon) cost += Restrike * (soft - gap) / soft;
                         break;
                     }
@@ -728,6 +732,9 @@ namespace AutoFingering.Core
                     return 1;
                 }
 
+                // 번갈아 칠 때 부딪히는 앞뒤 간격을 둘 다 본다. 앞만 보면 쉼 직전의 동타가 빠른 간격을 놓친다.
+                bool alternatePlayable = (i + 2 >= n || onset[i + 2] - onset[i] >= hard - TimeEpsilon)
+                    && (i == 0 || i + 1 >= n || onset[i + 1] - onset[i - 1] >= hard - TimeEpsilon);
                 int count = 0;
                 for (int hand = 0; hand < 2; hand++)
                 {
@@ -742,8 +749,8 @@ namespace AutoFingering.Core
                         total += size[last];
                         hasChord |= size[last] > 1;
                         if (!hands.Fits(hand, total, hasChord, extraNeeded[i])) break;
-                        // 엄지 없이 동타를 네 손가락 묶음에 담으면 바깥 손가락으로 돌아가 모양이 흔들린다(;l jk). 손을 번갈아 가게 한다.
-                        if (length > 1 && hasChord && total >= 4 && !hands.HasThumb(hand) && !extraNeeded[i]) break;
+                        // 엄지 없이 동타를 네 손가락 묶음에 담으면 바깥 손가락으로 돌아가 모양이 흔들린다(;l jk). 번갈아 쳐도 되는 빠르기면 번갈아 간다.
+                        if (length > 1 && hasChord && total >= 4 && !hands.HasThumb(hand) && alternatePlayable) break;
 
                         candidates[count++] = BuildRun(i, length, hand, total, hasChord, ring);
                     }
@@ -755,6 +762,7 @@ namespace AutoFingering.Core
             private Candidate BuildRun(int i, int length, int hand, int total, bool hasChord, int ring)
             {
                 int[] shape = hands.Shape(hand, total, length > 1 && hasChord);
+                bool grace = length == 2 && !hasChord && onset[i + 1] - onset[i] < GraceGap - TimeEpsilon;
                 RunView view = ResetView(ring, hand, length);
                 int picked = 0;
                 double own = 0;
@@ -762,7 +770,8 @@ namespace AutoFingering.Core
                 {
                     for (int c = 0; c < size[s]; c++)
                     {
-                        int slot = shape[picked++ % shape.Length];
+                        // Assign이 거의 동타인 두 음을 검지부터 누르므로 비용도 그 순서로 본다. 다르면 실제보다 간격이 길게 계산돼 못 치는 재타를 놓친다.
+                        int slot = shape[(grace ? total - 1 - picked++ : picked++) % shape.Length];
                         own += hands.FingerCost(slot);
                         view.Add(slot, hand, onset[s], busyUntil[s], size[s] > 1);
                     }
@@ -792,6 +801,9 @@ namespace AutoFingering.Core
                     if ((hand == 0) != (Side(onset[k], origin[i], pulse[i]) == 0)) missWhole += ParityMiss;
                     if ((hand == 0) != (Side(onset[k], origin[i], pulse[i] / 2) == 0)) missHalf += ParityMiss;
                 }
+
+                // 단타를 손당 2음씩 끊는 건 2키기반의 타법이다. 같은 곡을 지퍼는 44 ms 4키기반에서 8손가락으로, 37 ms 2키기반에서 d f k j로 쳤다.
+                if (base4 && length == 2 && !hasChord) missHalf += BelowHard;
 
                 if (hand != 0)
                 {
@@ -940,8 +952,8 @@ namespace AutoFingering.Core
 
             private static double RungOf(double gap, double low)
             {
-                while (gap < low) gap *= 2;
-                while (gap >= 2 * low) gap /= 2;
+                while (gap < low - TimeEpsilon) gap *= 2;
+                while (gap >= 2 * low - TimeEpsilon) gap /= 2;
                 return gap;
             }
 
@@ -953,9 +965,10 @@ namespace AutoFingering.Core
                 for (int k = from + 1; k < to; k++)
                 {
                     double gap = onset[k] - onset[k - 1];
-                    if (gap <= ChordGap + TimeEpsilon || gap >= 1) continue;
+                    if (gap <= ChordGap + TimeEpsilon || gap >= 1 - TimeEpsilon) continue;
                     double rung = RungOf(gap, low);
-                    int key = (int)Math.Round(rung * 400);
+                    // ponytail: 2.5 ms 칸. 경계를 0.5에서 옮겨 160 BPM처럼 흔한 박자가 경계에 걸려 시각 오차로 칸이 갈리는 일을 막는다. 군집화는 실제 문제가 생기면 한다.
+                    int key = (int)Math.Round(rung * 400 + PulseBinShift);
                     double w;
                     weight.TryGetValue(key, out w);
                     weight[key] = w + gap;
