@@ -26,8 +26,9 @@ namespace AutoFingering.Core
         // Floor의 이 비율 아래로는 같은 손가락으로 실제로 칠 수 없다.
         private const double HardFloorRatio = 0.75;
 
-        private const double GridTolerance = 0.002;
-        private const double GridEpsilon = 0.003;
+        // 사용자가 정하는 리듬 오차 범위의 안전 한계다. 설정 창은 이보다 좁은 범위만 준다.
+        private const double MinTolerance = 0.0005;
+        private const double MaxTolerance = 0.02;
         private const int GridMisses = 4;
 
         private const double BelowHard = 30;
@@ -35,7 +36,7 @@ namespace AutoFingering.Core
         private const double BelowFloor = 2;
 
         // 동타 모양은 최소 간격 근처에서도 유지한다. 돌려 쓰면 묶음마다 모양이 바뀌어 외울 수 없다.
-        private const double ChordBelowFloor = 0.2;
+        private const double ChordBelowFloor = 1;
         private const double Restrike = 1.5;
 
         // 기반은 같은 손가락을 얼마나 여유 있게 다시 치는지다. 지퍼의 4키기반은 약 265 ms, 2키기반은 약 147 ms까지 내려간다.
@@ -45,7 +46,8 @@ namespace AutoFingering.Core
         private const double Chain4 = 2.25;
         private const double Chain2 = 1.1;
         private const double Rung4 = 1.0;
-        private const double Rung2 = 0.67;
+        // 2키기반은 연타를 두 키로 번갈아 친다(떨기). 지퍼와 블라 모두 71 ms 간격까지 f j로 쳤고, 지퍼는 62.5 ms의 긴 연타부터 d f k j로 넘어갔다.
+        private const double Rung2 = 0.63;
 
         private const double HandRepeat = 0.6;
         private const double SlowRepeat4 = 0.3;
@@ -60,6 +62,10 @@ namespace AutoFingering.Core
         private const double HalfMin = 0.55;
         private const double ModeSwitch = 4;
         private const double HalfRent = 1;
+
+        // 느린 대목에서 넓힐 수 있는 창의 한계(Floor의 배수)와, 주변을 살피는 슬롯 수.
+        private const double CoarseMax = 2;
+        private const int CoarseReach = 12;
 
         // ponytail: 상태를 묶음당 이만큼만 남긴다. 실제 맵에서는 결과가 달라지지 않았고, 극단적 맵에서 메모리와 시간을 막는다.
         private const int BeamWidth = 96;
@@ -400,6 +406,8 @@ namespace AutoFingering.Core
             private readonly double hard;
             private readonly double comfort;
             private readonly double comfortFast;
+            private readonly double tolerance;
+            private readonly double gridEpsilon;
 
             private readonly int n;
             private readonly int[] slotStart;
@@ -411,6 +419,7 @@ namespace AutoFingering.Core
             private readonly bool[] extraNeeded;
             private readonly double[] origin;
             private readonly double[] pulse;
+            private readonly bool[] widened;
             private readonly bool base4;
             private readonly int maxRun;
 
@@ -424,6 +433,8 @@ namespace AutoFingering.Core
                 this.hands = hands;
                 this.token = token;
                 floor = options.Floor;
+                tolerance = Math.Min(Math.Max(options.Tolerance, MinTolerance), MaxTolerance);
+                gridEpsilon = tolerance * 1.5;
                 hard = floor * HardFloorRatio;
                 base4 = options.Base >= 4;
                 comfort = floor * (base4 ? Comfort4 : Comfort2);
@@ -460,7 +471,7 @@ namespace AutoFingering.Core
                 if (n > 0) chainStart[0] = true;
                 for (int k = 1; k < n; k++)
                 {
-                    chainStart[k] = onset[k] - onset[k - 1] >= chainGap - TimeEpsilon || isBig[k] || isBig[k - 1];
+                    chainStart[k] = onset[k] - onset[k - 1] >= chainGap - tolerance || isBig[k] || isBig[k - 1];
                 }
 
                 // 여덟 손가락을 다 돌려도 실제로 못 치는 연타에서만 엄지와 손바닥을 연타에 쓴다.
@@ -473,6 +484,7 @@ namespace AutoFingering.Core
 
                 origin = new double[n];
                 pulse = new double[n];
+                widened = new bool[n];
                 FindGridSections(floor * (base4 ? Rung4 : Rung2), chainGap);
 
                 maxRun = Math.Min(LengthStates - 1, Math.Max(4, Math.Max(hands.Capacity[0], hands.Capacity[1])));
@@ -521,7 +533,8 @@ namespace AutoFingering.Core
                     }
 
                     int candidateCount = BuildCandidates(i);
-                    bool halfAllowed = pulse[i] / 2 >= floor * HalfMin - TimeEpsilon;
+                    // 넓힌 창은 이미 그 대목의 가장 빠른 음에 맞춘 것이라 다시 반으로 쪼개지 않는다.
+                    bool halfAllowed = !widened[i] && pulse[i] / 2 >= floor * HalfMin - TimeEpsilon;
                     for (int a = 0; a < count; a++)
                     {
                         int state = active[a];
@@ -744,7 +757,7 @@ namespace AutoFingering.Core
                     {
                         int last = i + length - 1;
                         if (last >= n || isBig[last]) break;
-                        if (length > 1 && onset[last] - onset[last - 1] > MaxInnerGap + TimeEpsilon) break;
+                        if (length > 1 && onset[last] - onset[last - 1] > MaxInnerGap + tolerance) break;
 
                         total += size[last];
                         hasChord |= size[last] > 1;
@@ -809,8 +822,8 @@ namespace AutoFingering.Core
                 {
                     int last = i + length - 1;
                     bool lastEndsChain = last + 1 >= n || chainStart[last + 1];
-                    // 4키기반의 외톨이 음은 부손이어도 시작과 끝 비용을 물리지 않는다.
-                    if (!(base4 && chainStart[i] && lastEndsChain && length == 1))
+                    // 4키기반과 느린 대목의 외톨이 음은 부손이어도 시작과 끝 비용을 물리지 않는다. 엇박을 부손으로 치는 자리다.
+                    if (!((base4 || widened[i]) && chainStart[i] && lastEndsChain && length == 1))
                     {
                         if (lastEndsChain) own += EndOffMain;
                         if (chainStart[i]) own += StartOffMain;
@@ -869,9 +882,9 @@ namespace AutoFingering.Core
                 return false;
             }
 
-            private static int Side(double time, double origin, double unit)
+            private int Side(double time, double origin, double unit)
             {
-                long cell = (long)Math.Floor((time - origin + GridEpsilon) / unit);
+                long cell = (long)Math.Floor((time - origin + gridEpsilon) / unit);
                 return (int)(((cell % 2) + 2) % 2);
             }
 
@@ -967,8 +980,8 @@ namespace AutoFingering.Core
                     double gap = onset[k] - onset[k - 1];
                     if (gap <= ChordGap + TimeEpsilon || gap >= 1 - TimeEpsilon) continue;
                     double rung = RungOf(gap, low);
-                    // ponytail: 2.5 ms 칸. 경계를 0.5에서 옮겨 160 BPM처럼 흔한 박자가 경계에 걸려 시각 오차로 칸이 갈리는 일을 막는다. 군집화는 실제 문제가 생기면 한다.
-                    int key = (int)Math.Round(rung * 400 + PulseBinShift);
+                    // ponytail: 오차 범위의 1.25배(기본 2.5 ms) 칸. 경계를 0.5에서 옮겨 160 BPM처럼 흔한 박자가 경계에 걸려 시각 오차로 칸이 갈리는 일을 막는다. 군집화는 실제 문제가 생기면 한다.
+                    int key = (int)Math.Round(rung / (tolerance * 1.25) + PulseBinShift);
                     double w;
                     weight.TryGetValue(key, out w);
                     weight[key] = w + gap;
@@ -993,15 +1006,15 @@ namespace AutoFingering.Core
                 return total[best] / weight[best];
             }
 
-            private static bool OnGrid(double x, double beat)
+            private bool OnGrid(double x, double beat)
             {
                 return OnCell(x, beat / 8) || OnCell(x, beat / 12);
             }
 
-            private static bool OnCell(double x, double cell)
+            private bool OnCell(double x, double cell)
             {
                 double q = x / cell;
-                return Math.Abs(q - Math.Round(q)) * cell <= GridTolerance;
+                return Math.Abs(q - Math.Round(q)) * cell <= tolerance;
             }
 
             // 같은 격자에 맞는 슬롯끼리 구간으로 묶고 구간마다 (원점, 박동)을 정한다.
@@ -1052,7 +1065,7 @@ namespace AutoFingering.Core
                     {
                         double after = k + 1 < n ? onset[k + 1] - onset[k] : 9;
                         double before = k > 0 ? onset[k] - onset[k - 1] : 9;
-                        if (after >= chainGap - TimeEpsilon && before < chainGap - TimeEpsilon)
+                        if (after >= chainGap - tolerance && before < chainGap - tolerance)
                         {
                             if (Side(onset[k], start, here) == 0) votesEven++;
                             else votesOdd++;
@@ -1067,7 +1080,57 @@ namespace AutoFingering.Core
                         pulse[k] = here;
                     }
 
+                    Coarsen(i, end, start, here);
                     i = end;
+                }
+            }
+
+            // 주변에 빠른 음이 없는 느린 대목은 창을 넓힌다. 그래야 정박은 주손, 엇박은 부손이 된다.
+            // 창을 좁게 둔 채면 8비트와 4비트가 전부 같은 창 쪽에 떨어져 한 손가락으로만 친다(지퍼의 Plum - R).
+            private void Coarsen(int from, int to, double start, double here)
+            {
+                double max = floor * CoarseMax;
+                if (here * 2 > max + tolerance) return;
+
+                var gaps = new List<double>();
+                for (int k = from; k < to; k++)
+                {
+                    int lo = Math.Max(from, k - CoarseReach);
+                    int hi = Math.Min(to - 1, k + CoarseReach);
+                    gaps.Clear();
+                    for (int x = lo + 1; x <= hi; x++)
+                    {
+                        double gap = onset[x] - onset[x - 1];
+                        if (gap > ChordGap + TimeEpsilon) gaps.Add(gap);
+                    }
+
+                    if (gaps.Count < 4) continue;
+                    gaps.Sort();
+
+                    // 가장 빠른 간격 한두 개는 꾸밈음일 수 있어 세 번째로 빠른 간격을 본다.
+                    double fastest = gaps[2];
+                    int coarse = 1;
+                    while (here * coarse * 2 <= fastest + tolerance && here * coarse * 2 <= max + tolerance) coarse *= 2;
+                    if (coarse == 1) continue;
+
+                    // 넓힌 창의 시작은 주변 음이 가장 많이 놓인 칸에 맞춘다.
+                    var counts = new int[coarse];
+                    for (int x = lo; x <= hi; x++)
+                    {
+                        long cell = (long)Math.Floor((onset[x] - start + gridEpsilon) / here);
+                        counts[(int)(((cell % coarse) + coarse) % coarse)]++;
+                    }
+
+                    int phase = 0;
+                    for (int c = 1; c < coarse; c++)
+                    {
+                        if (counts[c] > counts[phase]) phase = c;
+                    }
+
+                    // 좁은 창에서 부손 쪽(홀수 칸)이던 음은 넓힌 뒤에도 부손 쪽에 남긴다.
+                    origin[k] = start + phase * here + (phase % 2 == 1 ? here * coarse : 0);
+                    pulse[k] = here * coarse;
+                    widened[k] = true;
                 }
             }
 

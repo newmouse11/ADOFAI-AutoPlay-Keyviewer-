@@ -28,6 +28,7 @@ A Dance of Fire and Ice용 UnityModManager 모드입니다. 게임의 자동 재
 | 기반 | 2키 / 4키 | 2키 |
 | 최대 사용 키 | 4, 6, 8, 10, 12, 16, 전체 (뷰어의 키 수를 넘지 못함) | 전체 |
 | 2키 기반 최대 속도 | 테스트, 슬라이더 또는 `-`/`+` 버튼, 480-2000 BPM | 923 BPM |
+| 리듬 오차 범위 | 슬라이더 또는 `-`/`+` 버튼, 1-10 ms | 2 ms |
 | 키 역할 편집 | 슬롯마다 손과 손가락, 또는 사용 안 함. 키 개수별로 저장 | 뷰어 배열 순서로 추정 |
 
 2키 기반 최대 속도는 두 키를 번갈아 칠 때 낼 수 있는 분당 타수(BPM)입니다. Jipper 오버레이의 CBPM과 같은 기준이고, 60으로 나누면 KPS입니다. 번갈아 치면 한 손가락은 두 타마다 한 번 치므로, 이 값으로 같은 손가락을 다시 칠 수 있는 빠르기를 정합니다. 예를 들어 961 BPM이면 16.0 KPS이고, 같은 손가락 간격은 약 125 ms입니다.
@@ -38,18 +39,24 @@ A Dance of Fire and Ice용 UnityModManager 모드입니다. 게임의 자동 재
 
 ## 타법
 
-세계 1위 [Jipper](https://www.youtube.com/@jipper1214)의 키뷰어를 영상에서 프레임 단위로 읽어 얻은 실제 타법을 기준으로 만들었습니다. 사람은 음마다 손가락을 고르지 않고 손 단위로 묶어서 칩니다. 그래서 입력을 **왼손 묶음과 오른손 묶음**으로 나눕니다. 묶음의 손 모양은 음 수로 정해지므로, 반복되는 리듬에는 대체로 같은 모양이 나와 외워서 따라 치기 쉽습니다.
+세계 1위 [Jipper](https://www.youtube.com/@jipper1214)와 블라의 플레이 영상에서 키뷰어를 프레임 단위로 읽어 얻은 실제 타법을 기준으로 만들었습니다. 사람은 음마다 손가락을 고르지 않고 손 단위로 묶어서 칩니다. 그래서 입력을 **왼손 묶음과 오른손 묶음**으로 나눕니다. 묶음의 손 모양은 음 수로 정해지므로, 반복되는 리듬에는 대체로 같은 모양이 나와 외워서 따라 치기 쉽습니다.
 
 **빠르기:** 빠를수록 손가락을 늘립니다. 아래 표는 고른 연타를 왼손 주손, 밖안으로 계산한 값입니다. BPM은 1분에 누르는 횟수이고 20 BPM 단위로 쟀습니다.
 
 | 기반, 2키 기반 최대 속도 | `F` | `F J` | `D F K J` | `A S D F ; L K J` |
 |---|---|---|---|---|
-| 4키기반, 1120 BPM | 280까지 | 300-580 | 600-1120 | 1140부터 |
-| 2키기반, 1120 BPM | 400까지 | 420-820 | 840-2020 | 2040부터 |
+| 4키기반, 1120 BPM | 260까지 | 280-580 | 600-1120 | 1140부터 |
+| 2키기반, 1120 BPM | 260까지 | 280-880 | 900-2020 | 2040부터 |
 | 4키기반, 798 BPM | 180까지 | 200-580 | 600-780 | 800부터 |
-| 2키기반, 798 BPM | 280까지 | 300-580 | 600-1440 | 1460부터 |
+| 2키기반, 798 BPM | 180까지 | 200-620 | 640-1440 | 1460부터 |
 
 두 기반의 차이는 지퍼의 영상에서 그대로 나옵니다. 같은 곡을 44 ms 간격의 4키기반에서는 8손가락으로, 37 ms 간격의 2키기반에서는 `D F K J`로 쳤습니다.
+
+**떨기:** 2키기반은 연타를 두 키로 번갈아 칩니다. 지퍼와 블라 모두 Cyberfantasia의 71 ms 연타(840 BPM)를 `F J`로 쳤습니다. 그 사이에 더 빠른 음이 끼면 한 손이 두 음을 받습니다(`F J D F J`). 두 키로 치는 범위는 2키 기반 최대 속도의 약 80%까지입니다.
+
+**느린 대목:** 주변에 빠른 음이 없으면 정박은 주손, 엇박은 부손으로 칩니다. 지퍼가 Plum - R에서 친 방식입니다. 아주 느린 음은 한 손가락으로 칩니다.
+
+**리듬 오차 범위:** 이 안의 간격 차이는 같은 리듬으로 봅니다. 박자가 조금 흔들리는 맵에서 값을 키우면 같은 모양이 이어져 외우기 쉽고, 대신 지퍼의 타법과는 조금 멀어질 수 있습니다. 합성한 100 ms 연타에 ±2 ms를 흔들면 1 ms에서는 모양이 여러 번 끊기고 10 ms에서는 끊기지 않습니다. 기본값 2 ms에서는 지퍼와의 일치율이 위 표와 같습니다. 같은 손가락을 다시 칠 수 있는 최소 간격이나 동타를 묶는 12 ms에는 적용하지 않습니다.
 
 **롤 방식**은 묶음을 나누는 데 영향을 주지 않고, 묶음 안의 방향만 정합니다. 오른손이 주손인 4키 기준입니다.
 
@@ -66,13 +73,19 @@ A Dance of Fire and Ice용 UnityModManager 모드입니다. 게임의 자동 재
 
 **아래 키:** 엄지와 손바닥 키는 동타를 돕거나, 8손가락을 다 돌려도 실제로 못 치는 연타에서만 씁니다. 아예 쓰지 않으려면 최대 사용 키를 8로 둡니다.
 
-**지퍼와 얼마나 같은가:** 같은 맵의 지퍼 플레이와 비교한 값입니다. 동타는 한 칸으로 묶어 키가 모두 같아야 맞다고 셉니다. 지퍼의 설정(왼손 주손, 밖안, 1120 BPM)으로 계산했습니다. 반복 일관성은 간격이 같은 6타가 가장 흔한 키 순서로 나온 비율이고, 괄호는 지퍼 본인의 값입니다.
+**실제 플레이와 얼마나 같은가:** 같은 맵의 플레이 영상과 비교한 값입니다. 동타는 한 칸으로 묶어 키가 모두 같아야 맞다고 셉니다. 각 플레이어의 주손과 밖안, 1120 BPM으로 계산했습니다. 값을 맞추는 데 쓴 영상과, 맞춘 뒤에만 본 검증용 영상을 나눠 적습니다.
 
-| 맵 | 입력 수 | 키 일치 | 손 일치 | 반복 일관성 |
-|---|---|---|---|---|
-| First Town Of This Journey, 풀 4키기반 | 1,875 | 91.9% | 97.9% | 69.2% (66.4%) |
-| First Town Of This Journey 1.2배속, 풀 2키기반 | 1,875 | 93.7% | 98.1% | 86.3% (71.3%) |
-| REX, Pure Perfect, 2키기반 + 양손 동타 | 7,040 | 70.2% | 84.7% | 58.2% (34.9%) |
+| 맵 | 플레이어 | 용도 | 입력 수 | 키 일치 | 손 일치 |
+|---|---|---|---|---|---|
+| Plum - R, 2키기반 | Jipper | 학습 | 726 | 96.3% | 97.0% |
+| First Town Of This Journey 1.2배속, 풀 2키기반 | Jipper | 학습 | 1,875 | 93.0% | 97.5% |
+| First Town Of This Journey, 풀 4키기반 | Jipper | 학습 | 1,875 | 91.9% | 97.9% |
+| Cyberfantasia, 풀 2키기반 (오른손 주손) | 블라 | 학습 | 3,130 | 83.2% | 97.1% |
+| Cyberfantasia | Jipper | 학습 | 3,130 | 70.4% | 83.7% |
+| REX, 2키기반 + 양손 동타 | Jipper | 학습 | 7,040 | 70.2% | 84.7% |
+| brainthieves (스윙 리듬) | Jipper | 학습 | 2,481 | 37.8% | 53.3% |
+| MaRioNeTT◆TricKStaR | Jipper | 검증 | 3,307 | 70.7% | 94.7% |
+| Encore. | Jipper | 검증 | 3,767 | 57.0% | 75.2% |
 
 ## 키 역할과 상태 줄
 
@@ -92,12 +105,12 @@ Jipper의 평생 키 통계에는 자동 재생 입력이 남지 않습니다. �
 
 ## 검증한 환경
 
-Windows Sandbox 안의 Mods 폴더에 1.2.0 zip의 파일을 복사하고, 테스트용 모드가 자동 재생을 켜서 음악 없는 레벨을 기본 설정과 60 fps로 돌렸습니다. 실제 맵으로는 REX(Camellia)를 밖안, 오른손 주손, 2키기반, 798 BPM, 최대 16키로 끝까지 돌렸습니다. UnityModManager 설치기, Otto 버튼, 안밖·밖안 외의 롤 방식, 소리는 게임 안에서 확인하지 않았습니다. 롤 방식은 단위 테스트로 검증했습니다.
+Windows Sandbox 안의 Mods 폴더에 1.4.0 zip의 파일을 복사하고, 테스트용 모드가 자동 재생을 켜서 음악 없는 레벨을 기본 설정과 60 fps로 돌렸습니다. 실제 맵으로는 REX(Camellia)를 밖안, 오른손 주손, 2키기반, 798 BPM, 최대 16키로 끝까지 돌렸습니다. UnityModManager 설치기, Otto 버튼, 안밖·밖안 외의 롤 방식, 소리는 게임 안에서 확인하지 않았습니다. 롤 방식은 단위 테스트로 검증했습니다.
 
 | 게임 | 키 뷰어 | 경로 | 결과 |
 |---|---|---|---|
 | R150 | Jipper 1.6.0 + LineKeyViewer 1.0.2 | 에디터 2회, 일반 1회 | 계획한 126번과 켠 순서 일치, 키 통계 복원 |
-| R150 | Jipper 1.6.0 + LineKeyViewer 1.0.2 | REX 전체 1회 | 7,040타 모두 켜짐, 키별 횟수 일치, 키 통계 복원, 아래 키 404회, 7,040번 중 6,991번이 4프레임(약 67 ms) 켜짐, 100 ms를 넘은 12번은 홀드 타일, 없어진 항목이 있는 예전 설정 파일을 그대로 읽음 |
+| R150 | Jipper 1.6.0 + LineKeyViewer 1.0.2 | REX 전체 1회 | 7,040타 모두 켜짐, 키별 횟수 일치, 키 통계 복원, 아래 키 697회, 7,040번 중 7,000번이 4프레임(약 67 ms) 켜짐, 없어진 항목이 있는 예전 설정 파일을 그대로 읽음 |
 | R150 | AdofaiTweaks 2.9.3 | 에디터 2회 | 126번 모두 켜짐, 1회는 프레임이 밀려 한 쌍의 순서가 바뀜 |
 | R150 | 없음 | 에디터 2회 | 입력 0회, 모드 오류 없음 |
 | R150 | 없음, 자동 재생 끔 + 자동 타일 | 일반 1회 (의도한 실패로 종료) | 키 점등 0회 |
@@ -105,7 +118,7 @@ Windows Sandbox 안의 Mods 폴더에 1.2.0 zip의 파일을 복사하고, 테�
 
 2키 기반 최대 속도 테스트는 R150과 R145의 메인 메뉴에서 Windows 키 입력과 마우스 클릭을 넣어 확인했습니다. 두 키를 720, 960, 1,200 BPM으로 번갈아 넣으면 각각 약 720, 962, 1,200 BPM으로 측정됐습니다. 측정 중에는 키 76번에 행성이 한 번도 반응하지 않았고, 끝나면 입력이 돌아왔습니다. 한 키만 넣으면 값이 바뀌지 않았습니다. 취소, 창 닫기, 측정 중 화면 전환, 에디터에서의 시작 거부, `테스트`, `-`, `+`, 슬라이더 클릭도 확인했습니다. 사람이 키보드로 치는 경우는 확인하지 못했습니다.
 
-REX는 아직 켜져 있는 키를 다시 누를 때 한 프레임 뒤로 밀리므로 켠 순서가 계획과 일부 다릅니다(7,040자리 중 14자리). LineKeyViewer 쪽 점등 횟수는 REX에서 7,040번 중 18번 적게 집계됐고, 같은 실행에서 Jipper는 전부 켜졌습니다. 한 프레임만 켜진 입력도 18번이라 폴링 뷰어가 놓친 것으로 보이지만 확인하지는 못했습니다. 다른 프로그램이 CPU를 함께 쓰면 프레임이 떨어져 입력이 합쳐질 수 있습니다. 부하를 준 실행에서 REX가 7,024타로 줄었습니다.
+REX는 아직 켜져 있는 키를 다시 누를 때 한 프레임 뒤로 밀리므로 켠 순서가 계획과 일부 다릅니다(1.2.0에서 7,040자리 중 14자리). LineKeyViewer 쪽 점등 횟수는 1.2.0의 REX에서 7,040번 중 18번 적게 집계됐고, 같은 실행에서 Jipper는 전부 켜졌습니다. 한 프레임만 켜진 입력도 18번이라 폴링 뷰어가 놓친 것으로 보이지만 확인하지는 못했습니다. 다른 프로그램이 CPU를 함께 쓰면 프레임이 떨어져 입력이 합쳐질 수 있습니다. 부하를 준 실행에서 REX가 7,024타로 줄었습니다.
 
 ## 알려진 제한
 
@@ -117,7 +130,7 @@ REX는 아직 켜져 있는 키를 다시 누를 때 한 프레임 뒤로 밀리
 - 시도 도중 게임이 꺼지면(창을 닫는 경우 포함) Jipper 키 통계가 복원되지 않을 수 있습니다. Jipper 1.4.9는 자체 스레드가 저장하므로 이 가능성이 더 큽니다.
 - AdofaiTweaks 키 뷰어는 자동 재생 중 실제 키 입력을 표시하지 않고, 코드 4096 이상의 키를 표시하지 못합니다.
 - Jipper 1.4.9는 자체 스레드가 키를 읽으므로, 같은 키를 실제로 누르고 있거나 스레드가 입력을 놓치면 통계가 한 번 더 빠질 수 있습니다.
-- 타법 값은 지퍼 영상의 맵 2곡에 맞췄습니다. 다른 성격의 맵에서는 일치도가 낮을 수 있습니다. He He He처럼 지퍼가 16키기반으로 친 영상은 기준에 넣지 않았고, 그런 타법은 만들지 않습니다.
+- 타법 값은 두 플레이어의 영상 7개에 맞췄습니다. 검증용 영상 2개에서는 키 일치가 57-71%였습니다. 스윙처럼 박자가 3박 계열인 맵은 손 배정이 주기마다 뒤집혀 잘 맞지 않습니다(brainthieves 38%). He He He처럼 지퍼가 16키기반으로 친 영상은 기준에 넣지 않았고, 그런 타법은 만들지 않습니다.
 - 아주 빠른 구간에서는 최대 속도 초과가 생길 수 있습니다. 상태 줄에 초과 횟수가 나옵니다.
 - 묶음은 밖안 순서를 기준으로 나눕니다. 안밖과 계단 계열은 아주 빠른 구간에서 같은 손가락 간격이 더 짧아질 수 있습니다. REX를 최대 8키, 4키기반, 1120 BPM으로 계산하면 최대 속도 초과가 밖안 55회, 안밖 87회입니다.
 - 2키 기반 최대 속도는 두 손가락으로 재서 모든 손가락에 같게 적용합니다. 약지나 소지가 유독 느려도 따로 낮추지 않습니다.
@@ -177,6 +190,7 @@ It only displays. It sends no input and never changes `RDC.auto`, so it has no e
 | Base | 2-key / 4-key | 2-key |
 | Max keys used | 4, 6, 8, 10, 12, 16, All (limited by the viewer's key count) | All |
 | 2-key max speed | Test, slider or `-`/`+` buttons, 480-2000 BPM | 923 BPM |
+| Rhythm tolerance | Slider or `-`/`+` buttons, 1-10 ms | 2 ms |
 | Key role editor | Hand and finger per slot, or not used. Saved per key count | Inferred from viewer array order |
 
 2-key max speed is how many presses per minute (BPM) you can reach alternating two keys. It matches CBPM on the Jipper overlay, and dividing by 60 gives KPS. Alternating means each finger plays every second press, so this value sets how fast the same finger may repeat. For example, 961 BPM is 16.0 KPS, which means about 125 ms between presses of one finger.
@@ -187,18 +201,24 @@ The test only runs from the main menu. The game keeps handling keys while the Un
 
 ## Fingering
 
-The fingering follows real play by world rank 1 [Jipper](https://www.youtube.com/@jipper1214), read frame by frame from the key viewer in his videos. People do not choose a finger per note, they play in groups per hand. So input is split into **left hand runs and right hand runs**. The shape of a run follows from its note count, so a repeated rhythm mostly gets the same shape and is easier to memorize.
+The fingering follows real play by world rank 1 [Jipper](https://www.youtube.com/@jipper1214) and by 블라, read frame by frame from the key viewer in their videos. People do not choose a finger per note, they play in groups per hand. So input is split into **left hand runs and right hand runs**. The shape of a run follows from its note count, so a repeated rhythm mostly gets the same shape and is easier to memorize.
 
 **Speed:** faster input uses more fingers. The table shows even streams computed with main hand left, Inward. BPM means presses per minute, measured in steps of 20 BPM.
 
 | Base, 2-key max speed | `F` | `F J` | `D F K J` | `A S D F ; L K J` |
 |---|---|---|---|---|
-| 4-key, 1120 BPM | up to 280 | 300-580 | 600-1120 | from 1140 |
-| 2-key, 1120 BPM | up to 400 | 420-820 | 840-2020 | from 2040 |
+| 4-key, 1120 BPM | up to 260 | 280-580 | 600-1120 | from 1140 |
+| 2-key, 1120 BPM | up to 260 | 280-880 | 900-2020 | from 2040 |
 | 4-key, 798 BPM | up to 180 | 200-580 | 600-780 | from 800 |
-| 2-key, 798 BPM | up to 280 | 300-580 | 600-1440 | from 1460 |
+| 2-key, 798 BPM | up to 180 | 200-620 | 640-1440 | from 1460 |
 
 The difference between the two bases comes straight from Jipper's videos. He played the same song with eight fingers on 4-key base at 44 ms gaps, and with `D F K J` on 2-key base at 37 ms gaps.
+
+**Jitter:** 2-key base alternates two keys on streams. Both Jipper and 블라 played the 71 ms streams (840 BPM) in Cyberfantasia as `F J`. When a faster note falls in between, one hand takes two notes (`F J D F J`). Two keys are used up to about 80% of the 2-key max speed.
+
+**Slow passages:** with no fast notes nearby, on-beats go to the main hand and off-beats to the other hand, as Jipper played Plum - R. Very slow notes use one finger.
+
+**Rhythm tolerance:** gaps that differ by less than this count as the same rhythm. On charts with a slightly shaky beat, a larger value keeps the same shape going and is easier to memorize, at the cost of drifting a little from Jipper's play. On a synthetic 100 ms stream shaken by ±2 ms, the shape broke many times at 1 ms and did not break at 10 ms. At the default 2 ms the match with Jipper is the same as in the table above. It does not apply to the minimum gap for repeating a finger or to the 12 ms chord window.
 
 **Roll style** does not affect how runs are split, only the direction inside a run. Shown for 4 keys with the right hand as main hand.
 
@@ -215,13 +235,19 @@ When a hand run is just two notes less than 30 ms apart, it starts from the inde
 
 **Lower keys:** thumb and palm keys only help chords, or streams that eight fingers truly cannot play. To never use them, set max keys to 8.
 
-**How close to Jipper:** compared with his play on the same chart, slot by slot, where a chord counts as one slot and all its keys must match, using his settings (main hand left, Inward, 1120 BPM). Repeat consistency is how often 6 presses with the same gaps come out in their most common key order, with Jipper's own value in parentheses.
+**How close to real play:** compared with play videos on the same chart, slot by slot, where a chord counts as one slot and all its keys must match, using each player's main hand, Inward and 1120 BPM. Videos used to fit the values are listed apart from holdout videos that were only looked at afterwards.
 
-| Chart | Presses | Key match | Hand match | Repeat consistency |
-|---|---|---|---|---|
-| First Town Of This Journey, full 4-key | 1,875 | 91.9% | 97.9% | 69.2% (66.4%) |
-| First Town Of This Journey 1.2x, full 2-key | 1,875 | 93.7% | 98.1% | 86.3% (71.3%) |
-| REX, Pure Perfect, 2-key plus two-hand chords | 7,040 | 70.2% | 84.7% | 58.2% (34.9%) |
+| Chart | Player | Use | Presses | Key match | Hand match |
+|---|---|---|---|---|---|
+| Plum - R, 2-key | Jipper | Fit | 726 | 96.3% | 97.0% |
+| First Town Of This Journey 1.2x, full 2-key | Jipper | Fit | 1,875 | 93.0% | 97.5% |
+| First Town Of This Journey, full 4-key | Jipper | Fit | 1,875 | 91.9% | 97.9% |
+| Cyberfantasia, full 2-key (main hand right) | 블라 | Fit | 3,130 | 83.2% | 97.1% |
+| Cyberfantasia | Jipper | Fit | 3,130 | 70.4% | 83.7% |
+| REX, 2-key plus two-hand chords | Jipper | Fit | 7,040 | 70.2% | 84.7% |
+| brainthieves (swing rhythm) | Jipper | Fit | 2,481 | 37.8% | 53.3% |
+| MaRioNeTT◆TricKStaR | Jipper | Holdout | 3,307 | 70.7% | 94.7% |
+| Encore. | Jipper | Holdout | 3,767 | 57.0% | 75.2% |
 
 ## Key roles and status line
 
@@ -241,12 +267,12 @@ Autoplay presses do not stay in Jipper's lifetime key stats. During an attempt t
 
 ## Tested setups
 
-The files from the 1.2.0 zip were copied into the Mods folder inside Windows Sandbox, and a test mod turned autoplay on and ran a no-music level at default settings and 60 fps. As a real chart, REX (Camellia) was run to the end with Inward, main hand right, 2-key base, 798 BPM and max 16 keys. The UnityModManager installer, the Otto button, roll styles other than Outward and Inward, and sound were not checked in game. Roll styles are covered by unit tests.
+The files from the 1.4.0 zip were copied into the Mods folder inside Windows Sandbox, and a test mod turned autoplay on and ran a no-music level at default settings and 60 fps. As a real chart, REX (Camellia) was run to the end with Inward, main hand right, 2-key base, 798 BPM and max 16 keys. The UnityModManager installer, the Otto button, roll styles other than Outward and Inward, and sound were not checked in game. Roll styles are covered by unit tests.
 
 | Game | Key viewer | Route | Result |
 |---|---|---|---|
 | R150 | Jipper 1.6.0 + LineKeyViewer 1.0.2 | Editor twice, normal once | All 126 planned presses fired in order, key stats restored |
-| R150 | Jipper 1.6.0 + LineKeyViewer 1.0.2 | Full REX once | All 7,040 presses lit, per-key counts matched, key stats restored, lower keys 404 times, 6,991 of 7,040 lit for 4 frames (about 67 ms), the 12 over 100 ms were hold tiles, an old settings file with removed options loaded as is |
+| R150 | Jipper 1.6.0 + LineKeyViewer 1.0.2 | Full REX once | All 7,040 presses lit, per-key counts matched, key stats restored, lower keys 697 times, 7,000 of 7,040 lit for 4 frames (about 67 ms), an old settings file with removed options loaded as is |
 | R150 | AdofaiTweaks 2.9.3 | Editor twice | All 126 lit, one run swapped one pair when a frame slipped |
 | R150 | None | Editor twice | No input, no mod errors |
 | R150 | None, autoplay off with auto tiles | Normal once (ends in a deliberate fail) | No keys lit |
@@ -254,7 +280,7 @@ The files from the 1.2.0 zip were copied into the Mods folder inside Windows San
 
 The 2-key max speed test was checked from the main menu on R150 and R145 with injected Windows key input and mouse clicks. Alternating two keys at 720, 960 and 1,200 BPM measured about 720, 962 and 1,200 BPM. During a test the planet did not respond once in 76 presses, and input came back afterwards. One key alone left the value unchanged. Cancelling, closing the window, a screen change during the test, the refusal in the editor, and clicks on `Test`, `-`, `+` and the slider were also checked. A person playing on a keyboard was not checked.
 
-On REX a key that is still lit is re-pressed one frame later, so the lit order partly differs from the plan (14 of 7,040 positions). LineKeyViewer's lit count came out 18 short of 7,040 on REX, while Jipper lit all of them in the same run. Exactly 18 presses stayed lit for one frame, so the polling viewer probably missed them, but this was not confirmed. Other programs using the CPU can drop frames and merge presses. A run under load reduced REX to 7,024 presses.
+On REX a key that is still lit is re-pressed one frame later, so the lit order partly differs from the plan (14 of 7,040 positions on 1.2.0). LineKeyViewer's lit count came out 18 short of 7,040 on REX with 1.2.0, while Jipper lit all of them in the same run. Exactly 18 presses stayed lit for one frame, so the polling viewer probably missed them, but this was not confirmed. Other programs using the CPU can drop frames and merge presses. A run under load reduced REX to 7,024 presses.
 
 ## Known limits
 
@@ -266,7 +292,7 @@ On REX a key that is still lit is re-pressed one frame later, so the lit order p
 - If the game closes during an attempt, even through a normal window close, Jipper's key stats may not be restored. This is more likely on Jipper 1.4.9, whose own thread saves them.
 - The AdofaiTweaks key viewer does not show real key presses during autoplay, and cannot show key codes of 4096 or above.
 - Jipper 1.4.9 reads keys on its own thread, so physically holding the same key, or the thread missing a press, can subtract one count too many.
-- The fingering values were fitted to two charts from Jipper's videos. Charts of a different character may match less. Videos he played on 16-key base, such as He He He, were left out, and that style is not produced.
+- The fingering values were fitted to seven videos from two players. On two holdout videos the key match was 57-71%. Charts in triple meter such as swing match poorly, because the hand assignment flips every cycle (brainthieves 38%). Videos he played on 16-key base, such as He He He, were left out, and that style is not produced.
 - Very fast sections can go over max speed. The status line shows the count.
 - Runs are split using the Inward order. Outward and the stair styles can repeat a finger sooner in very fast sections. REX at max 8 keys, 4-key base, 1120 BPM goes over max speed 55 times with Inward and 87 times with Outward.
 - 2-key max speed is measured with two fingers and applied to all of them. It is not lowered for a slower ring finger or pinky.

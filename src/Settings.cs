@@ -13,6 +13,8 @@ namespace AutoFingering
     {
         public const double MinFloorMs = 60;
         public const double MaxFloorMs = 250;
+        public const double MinToleranceMs = 1;
+        public const double MaxToleranceMs = 10;
 
         // 번갈아 치면 한 손가락은 두 타마다 한 번 치므로, 같은 손가락 간격은 BPM의 두 박이다.
         private const double TwoBeatsMsAtOneBpm = 120000;
@@ -28,6 +30,8 @@ namespace AutoFingering
 
         // 화면에는 2키 최대 속도로 보여 주지만 저장은 이 값으로 한다. 1.0의 Settings.xml을 그대로 읽기 위함이다.
         public double FloorMs = 130;
+        // 이 간격 안의 차이는 같은 리듬으로 본다. 없는 예전 Settings.xml은 기본값 2를 쓴다.
+        public double ToleranceMs = 2;
         public List<RoleOverride> RoleOverrides = new List<RoleOverride>();
 
         public override void Save(UnityModManager.ModEntry modEntry)
@@ -55,6 +59,7 @@ namespace AutoFingering
                 Base = Base,
                 MaxKeys = MaxKeys,
                 Floor = ClampedFloorMs() / 1000.0,
+                Tolerance = Math.Min(Math.Max(ToleranceMs, MinToleranceMs), MaxToleranceMs) / 1000.0,
             };
         }
 
