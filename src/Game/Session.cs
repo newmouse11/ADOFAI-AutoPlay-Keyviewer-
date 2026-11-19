@@ -19,6 +19,10 @@ namespace AutoFingering.Game
         private static Plan plan;
         private static KeyScheduler scheduler;
 
+        // 착지한 노트 뒤에 예약된 굴리기 입력. 시간순으로 들어온다.
+        private static readonly List<KeyValuePair<float, byte>> pendingFills = new List<KeyValuePair<float, byte>>();
+        private const int FillEvent = -2;
+
         public static void OnAttemptStart(scrController controller)
         {
             if (!controller.gameworld) return;
@@ -77,6 +81,10 @@ namespace AutoFingering.Game
                 byte slot = plan.Slot[e];
                 if (slot == Solution.NoSlot) continue;
                 scheduler.Press(slot, e, plan.Tiles.Events[e].ReleaseTime >= 0, plan.Gap[e]);
+                for (int f = plan.FillStart[e]; f < plan.FillStart[e + 1]; f++)
+                {
+                    pendingFills.Add(new KeyValuePair<float, byte>(Time.time + plan.Fills[f].Delay, plan.Fills[f].Slot));
+                }
             }
         }
 
@@ -93,6 +101,7 @@ namespace AutoFingering.Game
             }
 
             SyncClock();
+            FirePendingFills();
             scheduler.Tick();
 
             // 연습 모드는 포털을 앞당기므로 뗄 착지가 안 오는 홀드가 남을 수 있다. 탭만 끝나면 함께 정리한다.
@@ -105,6 +114,7 @@ namespace AutoFingering.Game
 
             active = false;
             plan = null;
+            pendingFills.Clear();
             scheduler.Reset();
             ViewerHub.End();
         }
@@ -123,6 +133,19 @@ namespace AutoFingering.Game
             scheduler = new KeyScheduler(layout.Slots.Length, ViewerHub.Fire);
             active = true;
             planKey = Planner.Request(layout);
+        }
+
+        // 굴리기 입력은 탭이다. 다음 사용까지 간격을 모르므로 점등은 탭 상한까지만 한다.
+        private static void FirePendingFills()
+        {
+            int fired = 0;
+            while (fired < pendingFills.Count && pendingFills[fired].Key <= Time.time)
+            {
+                scheduler.Press(pendingFills[fired].Value, FillEvent, false, float.PositiveInfinity);
+                fired++;
+            }
+
+            if (fired > 0) pendingFills.RemoveRange(0, fired);
         }
 
         private static void SyncClock()

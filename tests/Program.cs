@@ -180,6 +180,15 @@ namespace AutoFingering.Tests
             return string.Concat(slots.Select(s => layout.Slots[s].Label));
         }
 
+        // 노트와 굴리기 입력을 시간순으로 합친 키 순서.
+        private static string Played(Layout layout, PressEvent[] events, Solution solution)
+        {
+            var presses = events.Select((e, i) => new KeyValuePair<double, byte>(e.Time, solution.Slot[i]))
+                .Concat(solution.Fills.Select(f => new KeyValuePair<double, byte>(events[f.After].Time + f.Delay, f.Slot)))
+                .OrderBy(p => p.Key);
+            return string.Concat(presses.Select(p => layout.Slots[p.Value].Label));
+        }
+
         private static int Distinct(byte[] slots, int start, int end)
         {
             return slots.Skip(start).Take(end - start).Distinct().Count();
@@ -248,6 +257,40 @@ namespace AutoFingering.Tests
             Expect("2-key 408 BPM", 408, JipperOptions(2), "fj");
             Expect("2-key 840 BPM", 840, JipperOptions(2), "fj");
             Expect("2-key 960 BPM", 960, JipperOptions(2), "dfkj");
+
+            // 8키기반은 리듬과 상관없이 정해진 순서로 계속 돈다(사용자가 직접 친 영상의 96%).
+            Layout eight = Layout8();
+            var rotate = new SolverOptions { Style = RollStyle.Inward, MainHand = Hand.Right, Base = 8, Floor = 0.150 };
+            var gallopRun = new List<PressEvent>();
+            double clockR = 0;
+            for (int i = 0; i < 96; i++)
+            {
+                gallopRun.Add(new PressEvent(clockR, i));
+                clockR += new[] { 0.07, 0.035, 0.035 }[i % 3];
+            }
+
+            // 노트 사이에도 약 25 ms마다 굴린다. 70 ms 간격 32개에 1.8번, 35 ms 간격 63개에 0.4번씩이면 83번이다.
+            PressEvent[] gallopEvents = gallopRun.ToArray();
+            Solution gallopSolution = FingeringSolver.Solve(gallopEvents, eight, rotate);
+            string rotated = Played(eight, gallopEvents, gallopSolution);
+            Check(Cycles(rotated, ";lkjasdf"), $"8-key rotation keeps one cycle through any rhythm: {rotated.Substring(24, 24)}");
+            Check(Math.Abs(gallopSolution.Fills.Length - 83) <= 1, $"8-key rotation rolls between notes: {gallopSolution.Fills.Length} fills");
+            rotate.Style = RollStyle.Outward;
+            PressEvent[] stream = Stream(64, 0.1, 4);
+            string outward = Played(eight, stream, FingeringSolver.Solve(stream, eight, rotate));
+            Check(Cycles(outward, "jkl;fdsa"), $"8-key rotation follows the roll style: {outward.Substring(24, 16)}");
+            // 느린 대목에서는 굴리지 않는다.
+            Check(FingeringSolver.Solve(Stream(16, 0.25, 4), eight, rotate).Fills.Length == 0, "8-key rotation stops rolling when slow");
+
+            // 동타는 순환의 다음 칸을 한 손 안에서 차지한다.
+            rotate.Style = RollStyle.Inward;
+            PressEvent[] mixedChords = ChordStream(0.07, 1, 2, 1, 1, 2);
+            foreach (string g in ChordGroups(mixedChords, FingeringSolver.Solve(mixedChords, eight, rotate).Slot, eight))
+            {
+                bool leftHand = g.Any(c => "asdf".IndexOf(c) >= 0);
+                bool rightHand = g.Any(c => "jkl;".IndexOf(c) >= 0);
+                Check(!(leftHand && rightHand), $"8-key rotation chord split across hands: {g}");
+            }
 
             // 느린 대목은 정박을 주손, 엇박을 부손으로 친다(지퍼의 Plum - R, 180 BPM).
             var sync = new List<PressEvent>();

@@ -65,6 +65,16 @@ namespace AutoFingering.Core
 
         public byte[] Slot;
         public int FloorViolations;
+
+        // 노트 사이에 손가락을 굴리는 입력(8키 순환). After 이벤트가 착지한 뒤 Delay초에 Slot을 누른다. After 순으로 정렬돼 있다.
+        public Fill[] Fills = new Fill[0];
+    }
+
+    public struct Fill
+    {
+        public int After;
+        public float Delay;
+        public byte Slot;
     }
 
     public struct TileInfo

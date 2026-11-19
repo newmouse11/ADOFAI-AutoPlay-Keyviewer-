@@ -10,7 +10,7 @@ namespace AutoFingering.Core
     //
     // 비용 값은 지퍼의 플레이(REX 7,040타, First Town 4키기반·2키기반 각 1,875타)와 맞춘 것이다.
     // 값을 바꾸면 합성 데이터만 보지 말고 실제 맵으로 재현해 동타와 아래 키를 눈으로 확인한다.
-    public static class FingeringSolver
+    public static partial class FingeringSolver
     {
         private const double ChordGap = 0.012;
         private const double ChordSpan = 0.035;
@@ -96,8 +96,16 @@ namespace AutoFingering.Core
                 return result;
             }
 
-            var search = new RunSearch(events, hands, options, token);
-            search.Solve(result.Slot);
+            if (options.Base >= 8)
+            {
+                result.Fills = Rotate(events, hands, options, result.Slot);
+            }
+            else
+            {
+                var search = new RunSearch(events, hands, options, token);
+                search.Solve(result.Slot);
+            }
+
             RepairHolds(events, result.Slot, hands);
             result.FloorViolations = CountViolations(events, result.Slot, layout.Slots.Length, options.Floor * HardFloorRatio);
             return result;
@@ -157,6 +165,7 @@ namespace AutoFingering.Core
             private readonly int[][] extraKeys = new int[2][];
             private readonly int[][] byPriority = new int[2][];
             private readonly bool[] inward = new bool[2];
+            private readonly Hand[] realHand = new Hand[2];
             private readonly Finger[] fingerOf;
             private readonly int[] handOf;
             private readonly Dictionary<int, int[]> shapes = new Dictionary<int, int[]>();
@@ -202,6 +211,7 @@ namespace AutoFingering.Core
                     byPriority[h] = Pick(ActivationOrder, r, slotOf, allowed);
                     BaseCount[h] = baseKeys[h].Length;
                     Capacity[h] = byPriority[h].Length;
+                    realHand[h] = real[h];
                     inward[h] = options.Style == RollStyle.Inward
                         || (options.Style == RollStyle.Stair && real[h] == Hand.Left)
                         || (options.Style == RollStyle.ReverseStair && real[h] == Hand.Right);
@@ -211,6 +221,24 @@ namespace AutoFingering.Core
             public int HandOf(int slot)
             {
                 return handOf[slot];
+            }
+
+            // 그 손의 기본 손가락을 롤 방향 순서로 돌려준다.
+            public int[] RollKeys(int hand)
+            {
+                var keys = (int[])baseKeys[hand].Clone();
+                if (!inward[hand]) Array.Reverse(keys);
+                return keys;
+            }
+
+            public int[] ExtraKeys(int hand)
+            {
+                return extraKeys[hand];
+            }
+
+            public Hand RealHand(int hand)
+            {
+                return realHand[hand];
             }
 
             public bool RollsInward(int hand)

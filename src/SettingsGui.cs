@@ -107,6 +107,7 @@ namespace AutoFingering
             BeginRow(T("기반", "Base"));
             if (Choice(T("2키", "2-key"), settings.Base == 2)) settings.Base = 2;
             if (Choice(T("4키", "4-key"), settings.Base == 4)) settings.Base = 4;
+            if (Choice(T("8키 순환", "8-key rotation"), settings.Base == 8)) settings.Base = 8;
             EndRow();
         }
 
