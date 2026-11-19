@@ -15,6 +15,9 @@ namespace AutoFingering.Game
         // 이벤트별로 같은 슬롯을 다음에 쓰기까지 남은 실제 초. 없으면 양의 무한대.
         public float[] Gap;
         public int Violations;
+        public Fill[] Fills;
+        // 이벤트 e 뒤에 올 채움 입력은 Fills[FillStart[e]..FillStart[e + 1]).
+        public int[] FillStart;
     }
 
     internal static class Planner
@@ -121,6 +124,8 @@ namespace AutoFingering.Game
                     Slot = solution.Slot,
                     Gap = KeyScheduler.BuildGaps(tilePlan.Events, solution.Slot, layout.Slots.Length),
                     Violations = solution.FloorViolations,
+                    Fills = solution.Fills,
+                    FillStart = IndexFills(solution.Fills, tilePlan.Events.Length),
                 };
 
                 if (!token.IsCancellationRequested) latest = plan;
@@ -134,6 +139,19 @@ namespace AutoFingering.Game
             {
                 failure = "운지 계산 실패 (타일 " + tiles.Length + "개, 슬롯 " + layout.Slots.Length + "개): " + e;
             }
+        }
+
+        private static int[] IndexFills(Fill[] fills, int events)
+        {
+            var start = new int[events + 1];
+            int f = 0;
+            for (int e = 0; e <= events; e++)
+            {
+                while (f < fills.Length && fills[f].After < e) f++;
+                start[e] = f;
+            }
+
+            return start;
         }
 
         private static ulong Hash(TileInfo[] tiles, double pitch, bool hitOnce, SolverOptions options, Layout layout)

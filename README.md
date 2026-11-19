@@ -25,7 +25,7 @@ A Dance of Fire and Ice용 UnityModManager 모드입니다. 게임의 자동 재
 | 언어 | 게임 설정 / 한국어 / English | 게임 설정 |
 | 롤 방식 | 안밖 / 밖안 / 계단 / 역계단 | 안밖 |
 | 주손 | 오른손 / 왼손 | 오른손 |
-| 기반 | 2키 / 4키 | 2키 |
+| 기반 | 2키 / 4키 / 8키 순환 | 2키 |
 | 최대 사용 키 | 4, 6, 8, 10, 12, 16, 전체 (뷰어의 키 수를 넘지 못함) | 전체 |
 | 2키 기반 최대 속도 | 테스트, 슬라이더 또는 `-`/`+` 버튼, 480-2000 BPM | 923 BPM |
 | 리듬 오차 범위 | 슬라이더 또는 `-`/`+` 버튼, 1-10 ms | 2 ms |
@@ -55,6 +55,8 @@ A Dance of Fire and Ice용 UnityModManager 모드입니다. 게임의 자동 재
 **떨기:** 2키기반은 연타를 두 키로 번갈아 칩니다. 지퍼와 블라 모두 Cyberfantasia의 71 ms 연타(840 BPM)를 `F J`로 쳤습니다. 그 사이에 더 빠른 음이 끼면 한 손이 두 음을 받습니다(`F J D F J`). 두 키로 치는 범위는 2키 기반 최대 속도의 약 80%까지입니다.
 
 **느린 대목:** 주변에 빠른 음이 없으면 정박은 주손, 엇박은 부손으로 칩니다. 지퍼가 Plum - R에서 친 방식입니다. 아주 느린 음은 한 손가락으로 칩니다.
+
+**8키 순환:** 리듬과 상관없이 8손가락을 정해진 순서로 계속 굴립니다. 밖안·오른손 주손이면 `; L K J A S D F`가 반복됩니다. 빠른 구간(노트 간격 120 ms 이하)에서는 노트 사이에도 약 25 ms마다 다음 손가락을 눌러, 노트가 굴리는 흐름 위에 얹힙니다. 그래서 맵에 없는 입력도 키뷰어에 켜집니다. 동타는 한 손 안에서 치고, 셋 이상이면 그 손의 엄지·손바닥 키를 더합니다. 홀드로 눌린 손가락은 건너뜁니다. 실제로 ASGORE(zsry Remix)를 직접 친 영상의 수동 구간에서 입력의 96%가 이 순서를 따랐고, 노트 313개에 입력이 556번이었습니다. 같은 구간을 이 모드로 계산하면 순서 98%, 입력 554번입니다. 최소 간격은 지키지 않습니다.
 
 **리듬 오차 범위:** 이 안의 간격 차이는 같은 리듬으로 봅니다. 박자가 조금 흔들리는 맵에서 값을 키우면 같은 모양이 이어져 외우기 쉽고, 대신 지퍼의 타법과는 조금 멀어질 수 있습니다. 합성한 100 ms 연타에 ±2 ms를 흔들면 1 ms에서는 모양이 여러 번 끊기고 10 ms에서는 끊기지 않습니다. 기본값 2 ms에서는 지퍼와의 일치율이 위 표와 같습니다. 같은 손가락을 다시 칠 수 있는 최소 간격이나 동타를 묶는 12 ms에는 적용하지 않습니다.
 
@@ -105,7 +107,7 @@ Jipper의 평생 키 통계에는 자동 재생 입력이 남지 않습니다. �
 
 ## 검증한 환경
 
-Windows Sandbox 안의 Mods 폴더에 1.4.0 zip의 파일을 복사하고, 테스트용 모드가 자동 재생을 켜서 음악 없는 레벨을 기본 설정과 60 fps로 돌렸습니다. 실제 맵으로는 REX(Camellia)를 밖안, 오른손 주손, 2키기반, 798 BPM, 최대 16키로 끝까지 돌렸습니다. UnityModManager 설치기, Otto 버튼, 안밖·밖안 외의 롤 방식, 소리는 게임 안에서 확인하지 않았습니다. 롤 방식은 단위 테스트로 검증했습니다.
+Windows Sandbox 안의 Mods 폴더에 1.4.0 zip의 파일을 복사하고, 테스트용 모드가 자동 재생을 켜서 음악 없는 레벨을 기본 설정과 60 fps로 돌렸습니다. 실제 맵으로는 REX(Camellia)를 밖안, 오른손 주손, 2키기반, 798 BPM, 최대 16키로 끝까지 돌렸습니다. 8키 순환은 ASGORE(zsry Remix)를 끝까지 돌려 노트 5,231개와 굴리기 입력 2,728개가 모두 켜지고 꺼지는 것을 확인했습니다. UnityModManager 설치기, Otto 버튼, 안밖·밖안 외의 롤 방식, 소리는 게임 안에서 확인하지 않았습니다. 롤 방식은 단위 테스트로 검증했습니다.
 
 | 게임 | 키 뷰어 | 경로 | 결과 |
 |---|---|---|---|
@@ -187,7 +189,7 @@ It only displays. It sends no input and never changes `RDC.auto`, so it has no e
 | Language | Follow game / Korean / English | Follow game |
 | Roll style | Outward (안밖) / Inward (밖안) / Stair (계단) / Reverse stair (역계단) | Outward |
 | Main hand | Right / Left | Right |
-| Base | 2-key / 4-key | 2-key |
+| Base | 2-key / 4-key / 8-key rotation | 2-key |
 | Max keys used | 4, 6, 8, 10, 12, 16, All (limited by the viewer's key count) | All |
 | 2-key max speed | Test, slider or `-`/`+` buttons, 480-2000 BPM | 923 BPM |
 | Rhythm tolerance | Slider or `-`/`+` buttons, 1-10 ms | 2 ms |
@@ -217,6 +219,8 @@ The difference between the two bases comes straight from Jipper's videos. He pla
 **Jitter:** 2-key base alternates two keys on streams. Both Jipper and 블라 played the 71 ms streams (840 BPM) in Cyberfantasia as `F J`. When a faster note falls in between, one hand takes two notes (`F J D F J`). Two keys are used up to about 80% of the 2-key max speed.
 
 **Slow passages:** with no fast notes nearby, on-beats go to the main hand and off-beats to the other hand, as Jipper played Plum - R. Very slow notes use one finger.
+
+**8-key rotation:** the eight fingers keep rolling in a fixed order regardless of the rhythm. With Inward and main hand right, `; L K J A S D F` repeats. In fast passages (note gaps up to 120 ms) the next finger is also pressed about every 25 ms between notes, so the notes ride on top of the roll. This lights keys that are not in the chart. Chords stay in one hand, and three or more add that hand's thumb and palm keys. Fingers held down by a hold are skipped. In the hand-played part of a real ASGORE (zsry Remix) clip, 96% of presses followed this order, with 556 presses for 313 notes. The same part computed in this mode follows the order 98% of the time with 554 presses. The minimum finger gap is not enforced.
 
 **Rhythm tolerance:** gaps that differ by less than this count as the same rhythm. On charts with a slightly shaky beat, a larger value keeps the same shape going and is easier to memorize, at the cost of drifting a little from Jipper's play. On a synthetic 100 ms stream shaken by ±2 ms, the shape broke many times at 1 ms and did not break at 10 ms. At the default 2 ms the match with Jipper is the same as in the table above. It does not apply to the minimum gap for repeating a finger or to the 12 ms chord window.
 
@@ -267,7 +271,7 @@ Autoplay presses do not stay in Jipper's lifetime key stats. During an attempt t
 
 ## Tested setups
 
-The files from the 1.4.0 zip were copied into the Mods folder inside Windows Sandbox, and a test mod turned autoplay on and ran a no-music level at default settings and 60 fps. As a real chart, REX (Camellia) was run to the end with Inward, main hand right, 2-key base, 798 BPM and max 16 keys. The UnityModManager installer, the Otto button, roll styles other than Outward and Inward, and sound were not checked in game. Roll styles are covered by unit tests.
+The files from the 1.4.0 zip were copied into the Mods folder inside Windows Sandbox, and a test mod turned autoplay on and ran a no-music level at default settings and 60 fps. As a real chart, REX (Camellia) was run to the end with Inward, main hand right, 2-key base, 798 BPM and max 16 keys. 8-key rotation was run to the end of ASGORE (zsry Remix), and all 5,231 notes and 2,728 roll presses lit and released. The UnityModManager installer, the Otto button, roll styles other than Outward and Inward, and sound were not checked in game. Roll styles are covered by unit tests.
 
 | Game | Key viewer | Route | Result |
 |---|---|---|---|
